@@ -90,7 +90,7 @@
           dev = {
             type = "app";
             program = "${pkgs.writeShellScript "avatar-forest-dev" ''
-              export PATH="${pkgs.nodejs_24}/bin:${pkgs.imagemagick}/bin:$PATH"
+              set -e
 
               if [ ! -f "package.json" ]; then
                 echo "Error: Must be run from the project directory"
@@ -98,17 +98,18 @@
               fi
 
               if [ ! -d "node_modules" ]; then
-                echo "Installing dependencies..."
-                npm install
+                echo "📦 Installing dependencies..."
+                ${pkgs.nodejs_24}/bin/npm install
               fi
 
               if [ ! -f "public/assets/tilesets/tileset.png" ]; then
-                echo "Generating assets..."
-                npm run generate-assets
+                echo "🎨 Generating assets..."
+                export PATH="${pkgs.imagemagick}/bin:$PATH"
+                ${pkgs.nodejs_24}/bin/npm run generate-assets
               fi
 
-              echo "Starting development server..."
-              npm run dev
+              echo "🚀 Starting development server..."
+              ${pkgs.nodejs_24}/bin/npm run dev
             ''}";
           };
         };
