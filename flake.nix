@@ -91,6 +91,9 @@
             program = "${pkgs.writeShellScript "avatar-forest-dev" ''
               set -e
 
+              # Add Node.js to PATH so vite can find 'node'
+              export PATH="${pkgs.nodejs_24}/bin:${pkgs.imagemagick}/bin:$PATH"
+
               if [ ! -f "package.json" ]; then
                 echo "Error: Must be run from the project directory"
                 exit 1
@@ -98,17 +101,16 @@
 
               if [ ! -d "node_modules" ]; then
                 echo "📦 Installing dependencies..."
-                ${pkgs.nodejs_24}/bin/npm install
+                npm install
               fi
 
               if [ ! -f "public/assets/tilesets/tileset.png" ]; then
                 echo "🎨 Generating assets..."
-                export PATH="${pkgs.imagemagick}/bin:$PATH"
-                ${pkgs.nodejs_24}/bin/npm run generate-assets
+                npm run generate-assets
               fi
 
               echo "🚀 Starting development server..."
-              ${pkgs.nodejs_24}/bin/npm run dev
+              npm run dev
             ''}";
           };
         };
