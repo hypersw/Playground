@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private speed: number = 160;
+  private lastDirection: string = 'down'; // Track last facing direction
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, 'beaver'); // Use beaver sprite
@@ -28,10 +29,28 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Row 2: East (right) - frames 6-8
     // Row 3: North (up) - frames 9-11
 
-    // Idle animation (down-facing, center frame)
+    // Idle animations (center frame of each direction)
     scene.anims.create({
-      key: 'idle',
-      frames: [{ key: 'beaver', frame: 1 }], // Center frame of down animation
+      key: 'idle-down',
+      frames: [{ key: 'beaver', frame: 1 }], // Center frame of down row
+      frameRate: 1,
+    });
+
+    scene.anims.create({
+      key: 'idle-left',
+      frames: [{ key: 'beaver', frame: 4 }], // Center frame of left row
+      frameRate: 1,
+    });
+
+    scene.anims.create({
+      key: 'idle-right',
+      frames: [{ key: 'beaver', frame: 7 }], // Center frame of right row
+      frameRate: 1,
+    });
+
+    scene.anims.create({
+      key: 'idle-up',
+      frames: [{ key: 'beaver', frame: 10 }], // Center frame of up row
       frameRate: 1,
     });
 
@@ -100,17 +119,22 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       body.velocity.normalize().scale(this.speed);
     }
 
-    // Set animation based on movement
+    // Set animation based on movement and track last direction
     if (body.velocity.x < 0) {
       this.anims.play('walk-left', true);
+      this.lastDirection = 'left';
     } else if (body.velocity.x > 0) {
       this.anims.play('walk-right', true);
+      this.lastDirection = 'right';
     } else if (body.velocity.y < 0) {
       this.anims.play('walk-up', true);
+      this.lastDirection = 'up';
     } else if (body.velocity.y > 0) {
       this.anims.play('walk-down', true);
+      this.lastDirection = 'down';
     } else {
-      this.anims.play('idle', true);
+      // When stopped, use idle animation for last direction
+      this.anims.play(`idle-${this.lastDirection}`, true);
     }
   }
 }
