@@ -1,0 +1,47 @@
+╔════════════════════════════════════════════════════════════════╗
+║              NIX FLAKE QUICK REFERENCE                         ║
+╚════════════════════════════════════════════════════════════════╝
+
+(a) BUILD FOR DISTRIBUTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  nix build
+
+  Output: ./result/
+  Contains: Fully built game + serve script
+
+  Distribute:
+    zip -r game.zip -C result .
+    tar -czf game.tar.gz -C result .
+
+
+(b) RUN DIRECTLY (BUILD + SERVE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  nix run
+
+  Opens at: http://localhost:8000
+  Does: Builds game, serves it automatically
+
+  Custom port:
+    nix run . -- 3000
+
+
+OTHER USEFUL COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  nix run .#dev      - Development server (hot reload)
+  nix develop        - Enter dev environment
+  nix flake show     - See available outputs
+
+
+TYPICAL WORKFLOWS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Play the game:
+    nix run
+
+  Build for deployment:
+    nix build
+    cd result && zip -r ../game.zip .
+
+  Develop:
+    nix run .#dev
+    (or: nix develop → npm run dev)
+

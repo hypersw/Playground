@@ -15,32 +15,39 @@ A minimal but fully playable 2D browser-based avatar worlds game built with **Ph
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### NixOS / Nix Users (Recommended)
 
-- **Node.js** v18 or higher
-- npm, yarn, or pnpm
+```bash
+# One-command run (automatic setup + dev server)
+./run.sh
 
-### Installation & Run (3 simple steps)
+# Or manually:
+nix develop            # Enter development environment
+npm install            # Install dependencies
+npm run generate-assets  # Create placeholder assets
+npm run dev            # Start dev server
+```
+
+> 📖 **See [NIX_SETUP.md](NIX_SETUP.md)** for complete Nix usage guide.
+
+### Traditional Setup (Node.js installed)
+
+**Prerequisites:** Node.js v18+ and npm
 
 ```bash
 # 1. Install dependencies
 npm install
 
-# 2. Generate placeholder assets (uses ImageMagick via nix)
+# 2. Generate placeholder assets (requires ImageMagick)
 npm run generate-assets
 
 # 3. Start the dev server
 npm run dev
 ```
 
-**Alternative:** If you don't have Nix, you can run the asset generator directly with ImageMagick:
-```bash
-bash scripts/generate-placeholder-assets.sh
-```
-
 **That's it!** Open `http://localhost:3000` and use **Arrow Keys** or **WASD** to move around.
 
-> 📖 **See [HOW_TO_RUN.md](HOW_TO_RUN.md)** for detailed step-by-step instructions and troubleshooting.
+> 📖 **See [HOW_TO_RUN.md](HOW_TO_RUN.md)** for detailed instructions and troubleshooting.
 
 ### Build for Production
 
@@ -50,13 +57,24 @@ Create an optimized production build:
 npm run build
 ```
 
-The output will be in the `dist/` folder, ready to deploy as a static site.
+The output will be in the `dist/` folder.
 
-### Preview Production Build
+### Serve the Built Game
+
+**Important:** Modern browsers block ES modules on `file://` due to CORS security. You need a simple server:
 
 ```bash
+# Easiest - use the included script
+./serve.sh
+
+# Or use npm preview
 npm run preview
+
+# Or use Python
+cd dist && python3 -m http.server 8000
 ```
+
+Then open **http://localhost:8000** in your browser.
 
 ## Project Structure
 

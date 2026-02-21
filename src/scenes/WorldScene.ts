@@ -20,7 +20,7 @@ export class WorldScene extends Phaser.Scene {
     }
 
     // Create layers (adjust layer names to match your Tiled map)
-    const groundLayer = map.createLayer('Ground', tileset, 0, 0);
+    map.createLayer('Ground', tileset, 0, 0);
     const collisionLayer = map.createLayer('Collision', tileset, 0, 0);
 
     // Set up collision for the collision layer (tile ID 1 = walls)

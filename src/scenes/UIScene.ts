@@ -7,7 +7,7 @@ export class UIScene extends Phaser.Scene {
 
   create(): void {
     // Simple HUD overlay
-    const titleText = this.add.text(16, 16, 'Avatar World - CC0 Demo', {
+    const titleText = this.add.text(16, 16, '🦫 Beaver World - CC0 Demo', {
       fontSize: '20px',
       color: '#ffffff',
       stroke: '#000000',
@@ -25,6 +25,16 @@ export class UIScene extends Phaser.Scene {
     });
     controlsText.setScrollFactor(0);
     controlsText.setDepth(100);
+
+    // Attribution
+    const attrText = this.add.text(16, 72, 'Beaver sprite by bleutailfly (CC BY-SA)', {
+      fontSize: '10px',
+      color: '#cccccc',
+      stroke: '#000000',
+      strokeThickness: 2,
+    });
+    attrText.setScrollFactor(0);
+    attrText.setDepth(100);
 
     // Placeholder for future HUD elements (health, inventory, etc.)
   }

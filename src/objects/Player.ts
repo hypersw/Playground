@@ -4,7 +4,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private speed: number = 160;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y, 'player');
+    super(scene, x, y, 'beaver'); // Use beaver sprite
 
     // Add to scene and enable physics
     scene.add.existing(this);
@@ -12,8 +12,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Set up physics body
     this.setCollideWorldBounds(true);
-    this.body!.setSize(24, 28); // Adjust collision box as needed
-    this.body!.setOffset(4, 4);
+    this.body!.setSize(20, 24); // Adjust collision box for beaver
+    this.body!.setOffset(6, 8);
 
     // Create animations
     this.createAnimations();
@@ -22,42 +22,48 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private createAnimations(): void {
     const scene = this.scene;
 
-    // Idle animation (down-facing, frame 0)
+    // Beaver sprite layout: 3 frames per direction, 4 rows
+    // Row 0: South (down) - frames 0-2
+    // Row 1: West (left) - frames 3-5
+    // Row 2: East (right) - frames 6-8
+    // Row 3: North (up) - frames 9-11
+
+    // Idle animation (down-facing, center frame)
     scene.anims.create({
       key: 'idle',
-      frames: [{ key: 'player', frame: 0 }],
+      frames: [{ key: 'beaver', frame: 1 }], // Center frame of down animation
       frameRate: 1,
     });
 
-    // Walk down animation (row 0)
+    // Walk down animation (row 0, frames 0-2)
     scene.anims.create({
       key: 'walk-down',
-      frames: scene.anims.generateFrameNumbers('player', { start: 0, end: 3 }),
-      frameRate: 8,
+      frames: scene.anims.generateFrameNumbers('beaver', { start: 0, end: 2 }),
+      frameRate: 6,
       repeat: -1,
     });
 
-    // Walk up animation (row 1, frames 4-7)
-    scene.anims.create({
-      key: 'walk-up',
-      frames: scene.anims.generateFrameNumbers('player', { start: 4, end: 7 }),
-      frameRate: 8,
-      repeat: -1,
-    });
-
-    // Walk left animation (row 2, frames 8-11)
+    // Walk left animation (row 1, frames 3-5)
     scene.anims.create({
       key: 'walk-left',
-      frames: scene.anims.generateFrameNumbers('player', { start: 8, end: 11 }),
-      frameRate: 8,
+      frames: scene.anims.generateFrameNumbers('beaver', { start: 3, end: 5 }),
+      frameRate: 6,
       repeat: -1,
     });
 
-    // Walk right animation (row 3, frames 12-15)
+    // Walk right animation (row 2, frames 6-8)
     scene.anims.create({
       key: 'walk-right',
-      frames: scene.anims.generateFrameNumbers('player', { start: 12, end: 15 }),
-      frameRate: 8,
+      frames: scene.anims.generateFrameNumbers('beaver', { start: 6, end: 8 }),
+      frameRate: 6,
+      repeat: -1,
+    });
+
+    // Walk up animation (row 3, frames 9-11)
+    scene.anims.create({
+      key: 'walk-up',
+      frames: scene.anims.generateFrameNumbers('beaver', { start: 9, end: 11 }),
+      frameRate: 6,
       repeat: -1,
     });
   }

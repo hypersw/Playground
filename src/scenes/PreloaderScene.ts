@@ -49,8 +49,15 @@ export class PreloaderScene extends Phaser.Scene {
     // Tilemap JSON (exported from Tiled)
     this.load.tilemapTiledJSON('world-map', 'assets/maps/world-map.json');
 
-    // Player spritesheet (assumes 32x32 frames, 4 rows for directions, multiple columns for animation)
+    // Player spritesheet - Placeholder (simple colored squares)
     this.load.spritesheet('player', 'assets/sprites/player.png', {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
+
+    // Beaver sprite (CC BY-SA by bleutailfly)
+    // 3 frames per direction, 4 directions (South, West, East, North)
+    this.load.spritesheet('beaver', 'assets/sprites/beaver.png', {
       frameWidth: 32,
       frameHeight: 32,
     });
