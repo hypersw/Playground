@@ -11,32 +11,31 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
-        # Build the game as a package
-        avatar-forest = pkgs.stdenv.mkDerivation {
+        # Build the game as a package using buildNpmPackage
+        avatar-forest = pkgs.buildNpmPackage {
           pname = "avatar-forest";
           version = "0.1.0";
 
           src = ./.;
 
-          buildInputs = with pkgs; [
-            nodejs_24
+          # Hash of npm dependencies - Nix will fetch and cache them
+          # To update: set to lib.fakeHash, build will fail with correct hash
+          npmDepsHash = "sha256-LtAMjWFvIrHM7J74IaO8UuWEtuT2QBDPdddpXafgFas=";
+
+          nativeBuildInputs = with pkgs; [
             imagemagick
           ];
 
-          buildPhase = ''
-            # Set up npm cache
-            export HOME=$TMPDIR
-            export npm_config_cache=$TMPDIR/.npm
-
-            # Install dependencies
-            npm ci --prefer-offline --no-audit
-
-            # Generate assets if they don't exist
+          preBuild = ''
+            # Generate placeholder assets before building
             if [ ! -f "public/assets/tilesets/tileset.png" ]; then
-              npm run generate-assets
+              echo "🎨 Generating placeholder assets..."
+              bash scripts/generate-placeholder-assets.sh
             fi
+          '';
 
-            # Build the game
+          buildPhase = ''
+            echo "🏗️  Building Avatar Forest..."
             npm run build
           '';
 
