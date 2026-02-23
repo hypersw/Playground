@@ -86,20 +86,53 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private createRipple(x: number, y: number): void {
-    // Create a white circle graphic for the ripple (visible on blue water)
-    const ripple = this.add.circle(x, y, 2, 0xffffff, 0.7);
+    // Create a graphics object for the ripple (outline only)
+    const ripple = this.add.graphics();
+    ripple.lineStyle(1.5, 0xffffff, 0.8); // Line width 1.5, white, 80% opacity
+    ripple.strokeCircle(0, 0, 2); // Start small
+    ripple.setPosition(x, y);
     ripple.setDepth(5); // Above ground, below player
 
-    // Animate the ripple expanding and fading
+    // Create a mask from water tiles to clip ripples
+    const mask = this.createWaterMask();
+    if (mask) {
+      ripple.setMask(mask);
+    }
+
+    // Animate the ripple expanding and fading (slower)
     this.tweens.add({
       targets: ripple,
-      radius: 12, // Expand to 12 pixels
+      scaleX: 4, // Expand to 4x size (slower than before)
+      scaleY: 4,
       alpha: 0, // Fade out
-      duration: 600, // 600ms animation
-      ease: 'Cubic.easeOut',
+      duration: 900, // 900ms (slower)
+      ease: 'Sine.easeOut',
       onComplete: () => {
         ripple.destroy(); // Clean up
       },
     });
+  }
+
+  private createWaterMask(): Phaser.Display.Masks.GeometryMask | null {
+    if (!this.groundLayer) return null;
+
+    // Create a graphics object that represents all water tiles
+    const maskGraphics = this.make.graphics({ x: 0, y: 0, add: false });
+    maskGraphics.fillStyle(0xffffff);
+
+    // Draw rectangles for each water tile (tile index 4)
+    for (let y = 0; y < this.map.height; y++) {
+      for (let x = 0; x < this.map.width; x++) {
+        const tile = this.groundLayer.getTileAt(x, y);
+        if (tile && tile.index === 4) {
+          // This is a water tile
+          const worldX = tile.pixelX;
+          const worldY = tile.pixelY;
+          maskGraphics.fillRect(worldX, worldY, this.map.tileWidth, this.map.tileHeight);
+        }
+      }
+    }
+
+    return maskGraphics.createGeometryMask();
   }
 }
