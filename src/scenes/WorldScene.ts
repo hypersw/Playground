@@ -86,8 +86,8 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private createRipple(x: number, y: number): void {
-    // Create a circle graphic for the ripple
-    const ripple = this.add.circle(x, y, 2, 0x4a90e2, 0.6);
+    // Create a white circle graphic for the ripple (visible on blue water)
+    const ripple = this.add.circle(x, y, 2, 0xffffff, 0.7);
     ripple.setDepth(5); // Above ground, below player
 
     // Animate the ripple expanding and fading
