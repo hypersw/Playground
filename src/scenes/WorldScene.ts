@@ -88,10 +88,12 @@ export class WorldScene extends Phaser.Scene {
   private createRipple(x: number, y: number): void {
     // Create a graphics object for the ripple (outline only)
     const ripple = this.add.graphics();
-    ripple.lineStyle(1.5, 0xffffff, 0.8); // Line width 1.5, white, 80% opacity
+    ripple.lineStyle(0.8, 0xffffff, 0.8); // Thinner line (0.8px), white, 80% opacity
     ripple.strokeCircle(0, 0, 2); // Start small
-    ripple.setPosition(x, y);
-    ripple.setDepth(5); // Above ground, below player
+
+    // Position at the center/bottom of the sprite (where feet would be)
+    ripple.setPosition(x, y + 8); // Offset down to feet position
+    ripple.setDepth(-1); // Below player (player is at default depth 0)
 
     // Create a mask from water tiles to clip ripples
     const mask = this.createWaterMask();
