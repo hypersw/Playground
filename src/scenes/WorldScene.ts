@@ -7,7 +7,7 @@ export class WorldScene extends Phaser.Scene {
   private map!: Phaser.Tilemaps.Tilemap;
   private groundLayer!: Phaser.Tilemaps.TilemapLayer | null;
   private lastRippleTime: number = 0;
-  private rippleDelay: number = 200; // ms between ripples
+  private rippleDelay: number = 100; // ms between ripples (2x more frequent)
 
   constructor() {
     super({ key: 'WorldScene' });
@@ -93,7 +93,7 @@ export class WorldScene extends Phaser.Scene {
   private createRipple(x: number, y: number): void {
     // Create a graphics object for the ripple (outline only)
     const ripple = this.add.graphics();
-    ripple.lineStyle(0.8, 0xffffff, 0.8); // Thinner line (0.8px), white, 80% opacity
+    ripple.lineStyle(0.4, 0xffffff, 0.8); // Very thin line (0.4px), white, 80% opacity
     ripple.strokeCircle(0, 0, 2); // Start small
 
     // Position at the center/bottom of the sprite (where feet would be)
