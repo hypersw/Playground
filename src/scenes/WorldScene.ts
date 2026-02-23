@@ -27,6 +27,10 @@ export class WorldScene extends Phaser.Scene {
     this.groundLayer = this.map.createLayer('Ground', tileset, 0, 0);
     const collisionLayer = this.map.createLayer('Collision', tileset, 0, 0);
 
+    // Set layer depths
+    if (this.groundLayer) this.groundLayer.setDepth(0);
+    if (collisionLayer) collisionLayer.setDepth(0);
+
     // Set up collision for the collision layer (tile ID 1 = walls)
     if (collisionLayer) {
       collisionLayer.setCollisionByExclusion([-1, 0]); // All tiles except empty (0) collide
@@ -34,6 +38,7 @@ export class WorldScene extends Phaser.Scene {
 
     // Create the player at spawn position (center of walkable area)
     this.player = new Player(this, 160, 160);
+    this.player.setDepth(10); // Above everything else
 
     // Enable collision between player and collision layer
     if (collisionLayer) {
@@ -93,7 +98,7 @@ export class WorldScene extends Phaser.Scene {
 
     // Position at the center/bottom of the sprite (where feet would be)
     ripple.setPosition(x, y + 8); // Offset down to feet position
-    ripple.setDepth(-1); // Below player (player is at default depth 0)
+    ripple.setDepth(5); // Above ground (0) but below player (10)
 
     // Create a mask from water tiles to clip ripples
     const mask = this.createWaterMask();
