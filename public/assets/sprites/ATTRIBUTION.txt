@@ -14,3 +14,34 @@ This sprite is licensed under Creative Commons Attribution-ShareAlike.
 You must give appropriate credit and indicate if changes were made.
 
 Original download: https://opengameart.org/sites/default/files/beaver-1.1.zip
+
+## Log Sprite (log.png)
+
+**Source:** OpenGameArt.org
+**Asset:** Wood log pixel art by Redfill Production
+**URL:** https://opengameart.org/content/wood-log-pixel-art
+**License:** CC BY-SA 3.0 / CC BY-SA 4.0
+**Author:** Redfill Production
+**Dimensions:** 16×16 pixels per frame
+**Format:** 2 frames (side view and top view)
+
+This sprite is licensed under Creative Commons Attribution-ShareAlike.
+You must give appropriate credit and indicate if changes were made.
+
+Original download: https://opengameart.org/sites/default/files/wood%20log%20sprite%20sheet.png
+
+## Anglerfish Sprite (anglerfish.png)
+
+**Source:** OpenGameArt.org
+**Asset:** Deep-sea Creatures by pixel_emm
+**URL:** https://opengameart.org/content/deep-sea-creatures
+**License:** CC BY-SA 4.0
+**Author:** pixel_emm
+**Dimensions:** 48×48 pixels per frame
+**Format:** 2 frames (animation)
+**Modifications:** Extracted specific creature from spritesheet
+
+This sprite is licensed under Creative Commons Attribution-ShareAlike 4.0.
+You must give appropriate credit and indicate if changes were made.
+
+Original download: https://opengameart.org/sites/default/files/deep-sea_creatures.zip

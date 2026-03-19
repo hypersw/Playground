@@ -61,6 +61,20 @@ export class PreloaderScene extends Phaser.Scene {
       frameWidth: 32,
       frameHeight: 32,
     });
+
+    // Log sprite (CC BY-SA by Redfill Production)
+    // 2 frames: frame 0 = side view, frame 1 = top view
+    this.load.spritesheet('log', 'assets/sprites/log.png', {
+      frameWidth: 16,
+      frameHeight: 16,
+    });
+
+    // Anglerfish sprite (CC BY-SA 4.0 by pixel_emm)
+    // 2 frames for swimming animation
+    this.load.spritesheet('anglerfish', 'assets/sprites/anglerfish.png', {
+      frameWidth: 48,
+      frameHeight: 48,
+    });
   }
 
   create(): void {

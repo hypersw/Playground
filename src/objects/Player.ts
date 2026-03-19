@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
+import { PLAYER } from '../config/constants';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
-  private speed: number = 160;
+  private speed: number = PLAYER.SPEED;
   private lastDirection: string = 'down'; // Track last facing direction
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -11,10 +12,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Set up physics body
+    // Set up physics body — small enough to fit through single-tile (16px) maze corridors
     this.setCollideWorldBounds(true);
-    this.body!.setSize(20, 24); // Adjust collision box for beaver
-    this.body!.setOffset(6, 8);
+    this.body!.setSize(PLAYER.BODY.WIDTH, PLAYER.BODY.HEIGHT);
+    this.body!.setOffset(PLAYER.BODY.OFFSET_X, PLAYER.BODY.OFFSET_Y);
 
     // Create animations
     this.createAnimations();

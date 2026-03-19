@@ -6,9 +6,9 @@ import { UIScene } from '../scenes/UIScene';
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game-container',
-  width: 800,
-  height: 600,
-  pixelArt: true, // Crisp pixel art rendering
+  width: 1600,  // 2× canvas resolution for sharpness on HiDPI displays
+  height: 1200, // FIT scale mode scales it back down to window size
+  pixelArt: true, // Crisp pixel art rendering (no bilinear filtering)
   physics: {
     default: 'arcade',
     arcade: {
