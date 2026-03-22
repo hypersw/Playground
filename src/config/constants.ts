@@ -29,14 +29,15 @@ export const PLAYER = {
   },
 
   /**
-   * Spawn region: top-right island of the original map.
-   * In the 60×20 map, the original section occupies cols 40–59.
-   * The top-right island is the grass cluster separated by wall cols 53–54.
+   * Spawn region: top-right island of the original map section.
+   * In the 100×20 merged map, the original 20-tile section sits at cols 80–99.
+   * The top-right grass cluster (original cols 15–18) = new cols 95–98,
+   * separated from the main water by walls at cols 93–94.
    * Tile coords (inclusive).
    */
   SPAWN_REGION: {
-    MIN_COL: 55,
-    MAX_COL: 58,
+    MIN_COL: 95,
+    MAX_COL: 98,
     MIN_ROW: 1,
     MAX_ROW: 7,
   },
@@ -83,13 +84,13 @@ export const WATER = {
 // =============================================================================
 
 export const ANGLERFISH = {
-  /** Speed multiplier relative to player (0.75 = 75% of player speed) */
+  /** Speed multiplier relative to player */
   SPEED_MULTIPLIER: 0.5,
 
-  /** Starting X position (pixels) */
+  /** Starting X position (pixels) — fallback only */
   START_X: 400,
 
-  /** Starting Y position (pixels) */
+  /** Starting Y position (pixels) — fallback only */
   START_Y: 300,
 
   /** Depth layer for rendering (below player so it goes under when hit) */
@@ -97,6 +98,20 @@ export const ANGLERFISH = {
 
   /** Hit cooldown - time beaver's ripples stay red (milliseconds) */
   HIT_DURATION: 3000,
+
+  /**
+   * Tile column boundaries for the two separate water bodies.
+   * Left sea: cols 0 – LEFT_SEA_MAX_COL (inclusive)
+   * Right sea: cols RIGHT_SEA_MIN_COL – map end (inclusive)
+   */
+  LEFT_SEA_MAX_COL: 27,
+  RIGHT_SEA_MIN_COL: 65,
+
+  /**
+   * Distance (in pixels) beyond which an anglerfish AI is deactivated.
+   * 2 screens × (canvas width / zoom).
+   */
+  DEACTIVATE_DISTANCE_PX: 800,
 
   /** Ripple configuration */
   RIPPLES: {
@@ -106,6 +121,46 @@ export const ANGLERFISH = {
     /** Minimum time between ripples (milliseconds) */
     SPAWN_DELAY: 150,
   },
+} as const;
+
+// =============================================================================
+// LIVES
+// =============================================================================
+
+// =============================================================================
+// TOUCH / POINTER INPUT
+// =============================================================================
+
+export const TOUCH = {
+  /** Pixels of movement before a press is treated as a drag (not a tap) */
+  DRAG_THRESHOLD: 15,
+
+  /** Milliseconds of stationary press before joystick activates */
+  HOLD_DELAY: 150,
+
+  /** Desired outer-ring radius in CSS pixels — scaled to canvas space at runtime */
+  JOYSTICK_TARGET_CSS_PX: 65,
+
+  /** Inner knob radius as a fraction of the outer ring radius */
+  JOYSTICK_KNOB_RATIO: 0.38,
+
+  JOYSTICK_OUTER_ALPHA: 0.35,
+  JOYSTICK_INNER_ALPHA: 0.65,
+} as const;
+
+// =============================================================================
+// LIVES
+// =============================================================================
+
+export const LIVES = {
+  /** Starting number of lives */
+  INITIAL: 5,
+
+  /** Duration of the heart-fly animation (milliseconds) — also the immunity window */
+  ANIMATION_DURATION: 1000,
+
+  /** Alpha of the red game-over overlay */
+  OVERLAY_ALPHA: 0.55,
 } as const;
 
 // =============================================================================
@@ -192,6 +247,17 @@ export const UI = {
       color: '#ffd700', // Gold color for score
       stroke: '#000000',
       strokeThickness: 3,
+    },
+
+    /** Hearts row configuration */
+    HEARTS: {
+      /** X position of the first heart */
+      x: 16,
+      /** Y position of the hearts row */
+      y: 120,
+      /** Gap between hearts (pixels) */
+      spacing: 22,
+      fontSize: '18px',
     },
   },
 
