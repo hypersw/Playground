@@ -236,7 +236,7 @@ export class UIScene extends Phaser.Scene {
     const cx = this.scale.width / 2;
     const cy = this.scale.height / 2;
 
-    const text = this.add.text(cx, cy, 'YOU DIED', {
+    const text = this.add.text(cx, cy, 'WASTED', {
       fontSize: '120px',
       color: '#ffffff',
       stroke: '#000000',
