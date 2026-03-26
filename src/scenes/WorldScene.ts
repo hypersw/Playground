@@ -15,12 +15,13 @@ export class WorldScene extends Phaser.Scene {
   private logs!: Phaser.Physics.Arcade.Group;
   public score: number = 0;
 
-  // Lives / immunity
+  // Lives / immunity / game state
   public lives: number = LIVES.INITIAL;
   private isImmune: boolean = false;
   private immuneEndTime: number = 0;
   private isHit: boolean = false;
   private hitEndTime: number = 0;
+  private isGameOver: boolean = false;
 
   // -------------------------------------------------------------------------
   // Touch / pointer input
@@ -186,6 +187,8 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update(time: number): void {
+    if (this.isGameOver) return;
+
     if (this.player) {
       // Determine override velocity from joystick or path
       let overrideVelocity: { x: number; y: number } | undefined;
@@ -576,6 +579,10 @@ export class WorldScene extends Phaser.Scene {
     }
 
     this.events.emit('livesChanged', this.lives, this.player.x, this.player.y);
-    if (this.lives <= 0) this.events.emit('gameOver');
+    if (this.lives <= 0) {
+      this.isGameOver = true;
+      this.physics.pause();
+      this.events.emit('gameOver');
+    }
   }
 }

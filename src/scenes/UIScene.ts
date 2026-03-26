@@ -5,7 +5,6 @@ import { WorldScene } from './WorldScene';
 export class UIScene extends Phaser.Scene {
   private scoreText!: Phaser.GameObjects.Text;
   private heartTexts: Phaser.GameObjects.Text[] = [];
-  private gameOverOverlay!: Phaser.GameObjects.Rectangle;
 
   constructor() {
     super({ key: 'UIScene' });
@@ -88,23 +87,6 @@ export class UIScene extends Phaser.Scene {
     }
 
     // -------------------------------------------------------------------------
-    // Game-over red overlay (hidden initially)
-    // -------------------------------------------------------------------------
-    const cw = this.scale.width;
-    const ch = this.scale.height;
-    this.gameOverOverlay = this.add.rectangle(
-      cw / 2,
-      ch / 2,
-      cw,
-      ch,
-      0xff0000,
-      LIVES.OVERLAY_ALPHA
-    );
-    this.gameOverOverlay.setScrollFactor(0);
-    this.gameOverOverlay.setDepth(DEPTHS.UI - 1);
-    this.gameOverOverlay.setVisible(false);
-
-    // -------------------------------------------------------------------------
     // WorldScene event listeners
     // -------------------------------------------------------------------------
     const worldScene = this.scene.get('WorldScene') as WorldScene;
@@ -118,7 +100,7 @@ export class UIScene extends Phaser.Scene {
     });
 
     worldScene.events.on('gameOver', () => {
-      this.gameOverOverlay.setVisible(true);
+      this.startBloodTransition();
     });
   }
 
@@ -175,6 +157,101 @@ export class UIScene extends Phaser.Scene {
       onComplete: () => {
         clone.destroy();
       },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Doom-style blood transition
+  // ---------------------------------------------------------------------------
+
+  private startBloodTransition(): void {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const NUM_COLS = 42;
+    const colW = W / NUM_COLS;
+    const tipR = colW * 0.52; // drip-tip circle radius slightly wider than column
+
+    const gfx = this.add.graphics();
+    gfx.setDepth(DEPTHS.UI + 10);
+
+    // Per-column state
+    interface Col { h: number; speed: number; delay: number }
+    const cols: Col[] = Array.from({ length: NUM_COLS }, () => ({
+      h: 0,
+      speed: Phaser.Math.Between(10, 28),   // canvas px per frame
+      delay: Phaser.Math.Between(0, 22),    // frames before this column starts
+    }));
+
+    // Slight per-column colour variation for organic look
+    const colColours = cols.map(() => {
+      const r = Phaser.Math.Between(130, 180);
+      const g = 0;
+      const b = 0;
+      return (r << 16) | (g << 8) | b;
+    });
+
+    const onUpdate = () => {
+      gfx.clear();
+
+      let allDone = true;
+
+      for (let i = 0; i < NUM_COLS; i++) {
+        const col = cols[i];
+
+        if (col.delay > 0) {
+          col.delay--;
+          allDone = false;
+          continue;
+        }
+
+        if (col.h < H + tipR) {
+          col.h += col.speed;
+          allDone = false;
+        }
+
+        const x = i * colW;
+        const bodyH = Math.min(col.h, H); // rectangle never exceeds canvas
+
+        // Main blood column — dark red
+        gfx.fillStyle(colColours[i], 1);
+        gfx.fillRect(x, 0, colW, bodyH);
+
+        // Drip tip — brighter blob hanging below the column front
+        if (col.h < H + tipR) {
+          gfx.fillStyle(0xdd1111, 1);
+          gfx.fillCircle(x + colW / 2, col.h, tipR);
+        }
+      }
+
+      if (allDone) {
+        this.events.off('update', onUpdate);
+        this.showYouDied();
+      }
+    };
+
+    this.events.on('update', onUpdate);
+  }
+
+  private showYouDied(): void {
+    const cx = this.scale.width / 2;
+    const cy = this.scale.height / 2;
+
+    const text = this.add.text(cx, cy, 'YOU DIED', {
+      fontSize: '120px',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 8,
+      fontStyle: 'bold',
+    });
+    text.setOrigin(0.5, 0.5);
+    text.setDepth(DEPTHS.UI + 11);
+    text.setAlpha(0);
+
+    this.tweens.add({
+      targets: text,
+      alpha: 1,
+      duration: 1200,
+      ease: 'Sine.easeIn',
     });
   }
 }
