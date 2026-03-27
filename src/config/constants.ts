@@ -128,6 +128,36 @@ export const ANGLERFISH = {
 // =============================================================================
 
 // =============================================================================
+// EXIT PORTAL
+// =============================================================================
+
+export const EXIT = {
+  /** Tile index used to mark the exit on the Ground layer */
+  TILE_INDEX: 3,
+
+  /** Tile column of the exit (bottom-left water area) */
+  TILE_COL: 3,
+
+  /** Tile row of the exit */
+  TILE_ROW: 18,
+
+  /** Number of logs the player must collect before the portal opens */
+  LOGS_REQUIRED: 50,
+
+  /** Depth for portal graphics (above ground, below player) */
+  DEPTH: 6,
+
+  /** Closed-portal colour */
+  COLOR_CLOSED: 0x446688,
+
+  /** Open-portal inner glow colour */
+  COLOR_OPEN: 0x00ffff,
+
+  /** Open-portal outer ring colour */
+  COLOR_RING: 0x8844ff,
+} as const;
+
+// =============================================================================
 // TOUCH / POINTER INPUT
 // =============================================================================
 

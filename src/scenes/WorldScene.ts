@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { Player } from '../objects/Player';
 import { Log } from '../objects/Log';
 import { Anglerfish } from '../objects/Anglerfish';
-import { PLAYER, WATER, LOGS, CAMERA, DEPTHS, ANGLERFISH, LIVES, TOUCH } from '../config/constants';
+import { PLAYER, WATER, LOGS, CAMERA, DEPTHS, ANGLERFISH, LIVES, TOUCH, EXIT } from '../config/constants';
 import { findPath } from '../utils/pathfinder';
 
 export class WorldScene extends Phaser.Scene {
@@ -22,6 +22,12 @@ export class WorldScene extends Phaser.Scene {
   private isHit: boolean = false;
   private hitEndTime: number = 0;
   private isGameOver: boolean = false;
+
+  // Exit portal
+  private logsCollected: number = 0;
+  private portalOpen: boolean = false;
+  private portalGfx!: Phaser.GameObjects.Graphics;
+  private portalPulseTween: Phaser.Tweens.Tween | null = null;
 
   // -------------------------------------------------------------------------
   // Touch / pointer input
@@ -181,6 +187,9 @@ export class WorldScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
 
     this.cursors = this.input.keyboard!.createCursorKeys();
+
+    // Exit portal
+    this.setupExitPortal();
 
     // Touch / pointer input
     this.setupPointerInput();
@@ -549,11 +558,16 @@ export class WorldScene extends Phaser.Scene {
   ): void {
     const log = logObj as Log;
     this.score += LOGS.POINTS_PER_LOG;
+    this.logsCollected++;
     for (let i = 0; i < 3; i++) {
       this.time.delayedCall(i * 100, () => { this.createRipple(log.x, log.y); });
     }
     log.collect(this.player);
     this.events.emit('scoreChanged', this.score);
+
+    if (!this.portalOpen && this.logsCollected >= EXIT.LOGS_REQUIRED) {
+      this.openPortal();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -584,5 +598,120 @@ export class WorldScene extends Phaser.Scene {
       this.physics.pause();
       this.events.emit('gameOver');
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Exit portal
+  // ---------------------------------------------------------------------------
+
+  private setupExitPortal(): void {
+    const tileSize = this.map.tileWidth;
+    const exitX = EXIT.TILE_COL * tileSize + tileSize / 2;
+    const exitY = EXIT.TILE_ROW * tileSize + tileSize / 2;
+
+    // Draw the closed portal
+    this.portalGfx = this.add.graphics();
+    this.portalGfx.setDepth(EXIT.DEPTH);
+    this.drawPortalClosed();
+
+    // Zone for overlap detection (static physics body)
+    const zone = this.add.zone(exitX, exitY, tileSize, tileSize);
+    this.physics.add.existing(zone, true);
+    this.physics.add.overlap(
+      this.player,
+      zone,
+      () => { if (this.portalOpen) this.handleExitReached(); },
+      undefined,
+      this
+    );
+  }
+
+  private drawPortalClosed(): void {
+    const tileSize = this.map.tileWidth;
+    const cx = EXIT.TILE_COL * tileSize + tileSize / 2;
+    const cy = EXIT.TILE_ROW * tileSize + tileSize / 2;
+    const r = tileSize * 0.42;
+
+    this.portalGfx.clear();
+    this.portalGfx.fillStyle(EXIT.COLOR_CLOSED, 0.55);
+    this.portalGfx.fillCircle(cx, cy, r);
+    this.portalGfx.lineStyle(1, EXIT.COLOR_CLOSED, 0.9);
+    this.portalGfx.strokeCircle(cx, cy, r);
+  }
+
+  private openPortal(): void {
+    this.portalOpen = true;
+
+    const tileSize = this.map.tileWidth;
+    const cx = EXIT.TILE_COL * tileSize + tileSize / 2;
+    const cy = EXIT.TILE_ROW * tileSize + tileSize / 2;
+    const r = tileSize * 0.42;
+
+    // Redraw as open portal
+    this.portalGfx.clear();
+    this.portalGfx.fillStyle(EXIT.COLOR_OPEN, 0.5);
+    this.portalGfx.fillCircle(cx, cy, r);
+    this.portalGfx.lineStyle(1.5, EXIT.COLOR_RING, 1);
+    this.portalGfx.strokeCircle(cx, cy, r + 1);
+
+    // Pulsing scale tween
+    this.portalPulseTween = this.tweens.add({
+      targets: this.portalGfx,
+      scaleX: 1.25,
+      scaleY: 1.25,
+      alpha: 0.75,
+      duration: 700,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    // Bubble text above the portal
+    this.showPortalBubble(cx, cy - tileSize * 1.5);
+  }
+
+  private showPortalBubble(x: number, y: number): void {
+    const text = this.add.text(x, y, 'The portal has opened!', {
+      fontSize: '6px',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2,
+      backgroundColor: '#00000088',
+      padding: { x: 3, y: 2 },
+    });
+    text.setOrigin(0.5, 1);
+    text.setDepth(DEPTHS.UI - 2);
+
+    this.tweens.add({
+      targets: text,
+      y: y - 12,
+      alpha: 0,
+      duration: 2800,
+      ease: 'Sine.easeOut',
+      onComplete: () => text.destroy(),
+    });
+  }
+
+  private handleExitReached(): void {
+    if (this.isGameOver) return;
+    this.isGameOver = true; // reuse flag to block re-entry
+    this.physics.pause();
+
+    // Stop portal pulse
+    this.portalPulseTween?.stop();
+
+    // Player spin + scale up, then fade out
+    this.tweens.add({
+      targets: this.player,
+      angle: 360,
+      scaleX: 2.5,
+      scaleY: 2.5,
+      alpha: 0,
+      duration: 900,
+      ease: 'Cubic.easeIn',
+      onComplete: () => {
+        this.events.emit('levelComplete', this.score, this.logsCollected);
+      },
+    });
   }
 }

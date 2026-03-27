@@ -102,6 +102,10 @@ export class UIScene extends Phaser.Scene {
     worldScene.events.on('gameOver', () => {
       this.startBloodTransition();
     });
+
+    worldScene.events.on('levelComplete', (score: number, logs: number) => {
+      this.showLevelComplete(score, logs);
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -230,6 +234,36 @@ export class UIScene extends Phaser.Scene {
     };
 
     this.events.on('update', onUpdate);
+  }
+
+  private showLevelComplete(score: number, logs: number): void {
+    const cx = this.scale.width / 2;
+    const cy = this.scale.height / 2;
+
+    // Dark overlay
+    const overlay = this.add.rectangle(cx, cy, this.scale.width, this.scale.height, 0x000022, 0);
+    overlay.setDepth(DEPTHS.UI + 10);
+    this.tweens.add({ targets: overlay, fillAlpha: 0.75, duration: 600, ease: 'Sine.easeIn' });
+
+    const title = this.add.text(cx, cy - 80, 'LEVEL COMPLETE', {
+      fontSize: '96px',
+      color: '#00ffcc',
+      stroke: '#003322',
+      strokeThickness: 8,
+      fontStyle: 'bold',
+    });
+    title.setOrigin(0.5).setDepth(DEPTHS.UI + 11).setAlpha(0);
+
+    const sub = this.add.text(cx, cy + 30, `Logs: ${logs}   Score: ${score}`, {
+      fontSize: '48px',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 4,
+    });
+    sub.setOrigin(0.5).setDepth(DEPTHS.UI + 11).setAlpha(0);
+
+    this.tweens.add({ targets: title, alpha: 1, y: cy - 60, duration: 900, ease: 'Back.easeOut', delay: 300 });
+    this.tweens.add({ targets: sub,   alpha: 1,             duration: 700, ease: 'Sine.easeIn',  delay: 800 });
   }
 
   private showYouDied(): void {
