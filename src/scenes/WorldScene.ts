@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { Player } from '../objects/Player';
 import { Log } from '../objects/Log';
 import { Anglerfish } from '../objects/Anglerfish';
-import { PLAYER, WATER, LOGS, CAMERA, DEPTHS, ANGLERFISH, LIVES, TOUCH, EXIT } from '../config/constants';
+import { PLAYER, WATER, LOGS, CAMERA, DEPTHS, ANGLERFISH, LIVES, TOUCH, EXIT, SHOP } from '../config/constants';
 import { findPath } from '../utils/pathfinder';
 
 export class WorldScene extends Phaser.Scene {
@@ -21,7 +21,8 @@ export class WorldScene extends Phaser.Scene {
   private immuneEndTime: number = 0;
   private isHit: boolean = false;
   private hitEndTime: number = 0;
-  private isGameOver: boolean = false;
+  public isGameOver: boolean = false;
+  public isShopOpen: boolean = false;
 
   // Exit portal
   private logsCollected: number = 0;
@@ -195,8 +196,57 @@ export class WorldScene extends Phaser.Scene {
     this.setupPointerInput();
   }
 
+  // ---------------------------------------------------------------------------
+  // Shop
+  // ---------------------------------------------------------------------------
+
+  openShop(): void {
+    if (this.isGameOver || this.isShopOpen) return;
+    this.isShopOpen = true;
+    this.physics.pause();
+    this.playerPath = [];
+    if (this.joystickActive) this.deactivateJoystick();
+    // Disable pointer input so taps don't move the player while modal is open
+    this.input.enabled = false;
+  }
+
+  closeShop(): void {
+    if (!this.isShopOpen) return;
+    this.isShopOpen = false;
+    this.physics.resume();
+    this.input.enabled = true;
+  }
+
+  buyHearts(qty: number): { ok: boolean; reason?: string } {
+    const cost = qty * SHOP.BUY_RATE;
+    if (this.score < cost) {
+      return { ok: false, reason: `Need €${cost}, you have €${this.score}.` };
+    }
+    if (this.lives + qty > LIVES.INITIAL) {
+      return { ok: false, reason: `Hearts already at max (${LIVES.INITIAL}).` };
+    }
+    this.score -= cost;
+    this.lives += qty;
+    this.events.emit('scoreChanged', this.score);
+    this.events.emit('livesUpdated', this.lives, this.score);
+    return { ok: true };
+  }
+
+  sellHearts(qty: number): { ok: boolean; reason?: string } {
+    if (this.lives - qty < 1) {
+      return { ok: false, reason: 'Must keep at least 1 heart.' };
+    }
+    this.lives -= qty;
+    this.score += qty * SHOP.SELL_RATE;
+    this.events.emit('scoreChanged', this.score);
+    this.events.emit('livesUpdated', this.lives, this.score);
+    return { ok: true };
+  }
+
+  // ---------------------------------------------------------------------------
+
   update(time: number): void {
-    if (this.isGameOver) return;
+    if (this.isGameOver || this.isShopOpen) return;
 
     if (this.player) {
       // Determine override velocity from joystick or path

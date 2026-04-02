@@ -142,7 +142,7 @@ export const EXIT = {
   TILE_ROW: 18,
 
   /** Number of logs the player must collect before the portal opens */
-  LOGS_REQUIRED: 50,
+  LOGS_REQUIRED: 33,
 
   /** Depth for portal graphics (above ground, below player) */
   DEPTH: 6,
@@ -233,6 +233,24 @@ export const LOGS = {
 } as const;
 
 // =============================================================================
+// SHOP
+// =============================================================================
+
+export const SHOP = {
+  /** Base exchange rate: EUR per heart */
+  BASE_RATE: 50,
+
+  /** Spread fraction (0.2 = 20%) applied symmetrically around the base rate */
+  SPREAD: 0.2,
+
+  /** EUR cost to buy one heart (BASE_RATE × (1 + SPREAD)) */
+  BUY_RATE: 60,
+
+  /** EUR gained when selling one heart (BASE_RATE × (1 − SPREAD)) */
+  SELL_RATE: 40,
+} as const;
+
+// =============================================================================
 // UI
 // =============================================================================
 
@@ -288,6 +306,16 @@ export const UI = {
       /** Gap between hearts (pixels) */
       spacing: 22,
       fontSize: '18px',
+    },
+
+    /** Shop button configuration */
+    SHOP_BUTTON: {
+      x: 16,
+      y: 144,
+      fontSize: '16px',
+      color: '#ffdd88',
+      stroke: '#000000',
+      strokeThickness: 3,
     },
   },
 

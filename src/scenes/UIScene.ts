@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
 import { UI, DEPTHS, LIVES } from '../config/constants';
 import { WorldScene } from './WorldScene';
+import { ShopModal } from '../ui/ShopModal';
 
 export class UIScene extends Phaser.Scene {
   private scoreText!: Phaser.GameObjects.Text;
   private heartTexts: Phaser.GameObjects.Text[] = [];
+  private shopModal!: ShopModal;
 
   constructor() {
     super({ key: 'UIScene' });
@@ -87,6 +89,24 @@ export class UIScene extends Phaser.Scene {
     }
 
     // -------------------------------------------------------------------------
+    // Shop button
+    // -------------------------------------------------------------------------
+    const shopBtn = this.add.text(
+      UI.TEXT.SHOP_BUTTON.x,
+      UI.TEXT.SHOP_BUTTON.y,
+      '🛒 Shop',
+      {
+        fontSize: UI.TEXT.SHOP_BUTTON.fontSize,
+        color: UI.TEXT.SHOP_BUTTON.color,
+        stroke: UI.TEXT.SHOP_BUTTON.stroke,
+        strokeThickness: UI.TEXT.SHOP_BUTTON.strokeThickness,
+      }
+    );
+    shopBtn.setScrollFactor(0);
+    shopBtn.setDepth(DEPTHS.UI);
+    shopBtn.setInteractive({ useHandCursor: true });
+
+    // -------------------------------------------------------------------------
     // WorldScene event listeners
     // -------------------------------------------------------------------------
     const worldScene = this.scene.get('WorldScene') as WorldScene;
@@ -99,6 +119,13 @@ export class UIScene extends Phaser.Scene {
       this.onLifeLost(lives, worldX, worldY);
     });
 
+    // livesUpdated = shop purchase/sale (no fly animation, just re-sync display)
+    worldScene.events.on('livesUpdated', (lives: number, score: number) => {
+      this.syncHearts(lives);
+      this.scoreText.setText(`€${score}`);
+      this.shopModal.update(score, lives);
+    });
+
     worldScene.events.on('gameOver', () => {
       this.startBloodTransition();
     });
@@ -106,6 +133,35 @@ export class UIScene extends Phaser.Scene {
     worldScene.events.on('levelComplete', (score: number, logs: number) => {
       this.showLevelComplete(score, logs);
     });
+
+    // -------------------------------------------------------------------------
+    // Shop modal
+    // -------------------------------------------------------------------------
+    this.shopModal = new ShopModal(
+      (qty) => worldScene.buyHearts(qty),
+      (qty) => worldScene.sellHearts(qty),
+      () => {
+        this.shopModal.hide();
+        worldScene.closeShop();
+      },
+    );
+
+    shopBtn.on('pointerdown', () => {
+      if (worldScene.isGameOver) return;
+      worldScene.openShop();
+      this.shopModal.show(worldScene.score, worldScene.lives);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Hearts helpers
+  // ---------------------------------------------------------------------------
+
+  /** Set heart visibility to match the given lives count (no animation). */
+  private syncHearts(lives: number): void {
+    for (let i = 0; i < this.heartTexts.length; i++) {
+      this.heartTexts[i].setVisible(i < lives);
+    }
   }
 
   // ---------------------------------------------------------------------------
