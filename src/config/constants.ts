@@ -141,8 +141,8 @@ export const EXIT = {
   /** Tile row of the exit */
   TILE_ROW: 18,
 
-  /** Number of logs the player must collect before the portal opens */
-  LOGS_REQUIRED: 33,
+  /** EUR the player must accumulate before the portal opens */
+  MONEY_REQUIRED: 150,
 
   /** Depth for portal graphics (above ground, below player) */
   DEPTH: 6,
@@ -236,6 +236,8 @@ export const LOGS = {
 // SHOP
 // =============================================================================
 
+// BUY_RATE and SELL_RATE are derived at runtime — do NOT hardcode them.
+// Adjust BASE_RATE or SPREAD and the rates recalculate automatically.
 export const SHOP = {
   /** Base exchange rate: EUR per heart */
   BASE_RATE: 50,
@@ -243,12 +245,12 @@ export const SHOP = {
   /** Spread fraction (0.2 = 20%) applied symmetrically around the base rate */
   SPREAD: 0.2,
 
-  /** EUR cost to buy one heart (BASE_RATE × (1 + SPREAD)) */
-  BUY_RATE: 60,
+  /** EUR cost to buy one heart — derived: BASE_RATE × (1 + SPREAD) */
+  get BUY_RATE() { return Math.round(this.BASE_RATE * (1 + this.SPREAD)); },
 
-  /** EUR gained when selling one heart (BASE_RATE × (1 − SPREAD)) */
-  SELL_RATE: 40,
-} as const;
+  /** EUR gained when selling one heart — derived: BASE_RATE × (1 − SPREAD) */
+  get SELL_RATE() { return Math.round(this.BASE_RATE * (1 - this.SPREAD)); },
+};
 
 // =============================================================================
 // UI

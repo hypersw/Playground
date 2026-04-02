@@ -25,10 +25,10 @@ export class WorldScene extends Phaser.Scene {
   public isShopOpen: boolean = false;
 
   // Exit portal
-  private logsCollected: number = 0;
   private portalOpen: boolean = false;
   private portalGfx!: Phaser.GameObjects.Graphics;
   private portalPulseTween: Phaser.Tweens.Tween | null = null;
+  private portalPriceTag!: Phaser.GameObjects.Text;
 
   // -------------------------------------------------------------------------
   // Touch / pointer input
@@ -240,6 +240,10 @@ export class WorldScene extends Phaser.Scene {
     this.score += qty * SHOP.SELL_RATE;
     this.events.emit('scoreChanged', this.score);
     this.events.emit('livesUpdated', this.lives, this.score);
+
+    if (!this.portalOpen && this.score >= EXIT.MONEY_REQUIRED) {
+      this.openPortal();
+    }
     return { ok: true };
   }
 
@@ -608,14 +612,13 @@ export class WorldScene extends Phaser.Scene {
   ): void {
     const log = logObj as Log;
     this.score += LOGS.POINTS_PER_LOG;
-    this.logsCollected++;
     for (let i = 0; i < 3; i++) {
       this.time.delayedCall(i * 100, () => { this.createRipple(log.x, log.y); });
     }
     log.collect(this.player);
     this.events.emit('scoreChanged', this.score);
 
-    if (!this.portalOpen && this.logsCollected >= EXIT.LOGS_REQUIRED) {
+    if (!this.portalOpen && this.score >= EXIT.MONEY_REQUIRED) {
       this.openPortal();
     }
   }
@@ -664,6 +667,16 @@ export class WorldScene extends Phaser.Scene {
     this.portalGfx.setDepth(EXIT.DEPTH);
     this.drawPortalClosed();
 
+    // Price tag floating above the portal
+    this.portalPriceTag = this.add.text(exitX, exitY - tileSize * 0.9, `€${EXIT.MONEY_REQUIRED}`, {
+      fontSize: '5px',
+      color: '#88ccff',
+      stroke: '#000000',
+      strokeThickness: 1,
+    });
+    this.portalPriceTag.setOrigin(0.5, 1);
+    this.portalPriceTag.setDepth(EXIT.DEPTH + 1);
+
     // Zone for overlap detection (static physics body)
     const zone = this.add.zone(exitX, exitY, tileSize, tileSize);
     this.physics.add.existing(zone, true);
@@ -691,6 +704,7 @@ export class WorldScene extends Phaser.Scene {
 
   private openPortal(): void {
     this.portalOpen = true;
+    this.portalPriceTag.setVisible(false);
 
     const tileSize = this.map.tileWidth;
     const cx = EXIT.TILE_COL * tileSize + tileSize / 2;
@@ -760,7 +774,7 @@ export class WorldScene extends Phaser.Scene {
       duration: 900,
       ease: 'Cubic.easeIn',
       onComplete: () => {
-        this.events.emit('levelComplete', this.score, this.logsCollected);
+        this.events.emit('levelComplete', this.score);
       },
     });
   }

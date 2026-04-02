@@ -130,8 +130,8 @@ export class UIScene extends Phaser.Scene {
       this.startBloodTransition();
     });
 
-    worldScene.events.on('levelComplete', (score: number, logs: number) => {
-      this.showLevelComplete(score, logs);
+    worldScene.events.on('levelComplete', (score: number) => {
+      this.showLevelComplete(score);
     });
 
     // -------------------------------------------------------------------------
@@ -292,7 +292,7 @@ export class UIScene extends Phaser.Scene {
     this.events.on('update', onUpdate);
   }
 
-  private showLevelComplete(score: number, logs: number): void {
+  private showLevelComplete(score: number): void {
     const cx = this.scale.width / 2;
     const cy = this.scale.height / 2;
 
@@ -310,7 +310,7 @@ export class UIScene extends Phaser.Scene {
     });
     title.setOrigin(0.5).setDepth(DEPTHS.UI + 11).setAlpha(0);
 
-    const sub = this.add.text(cx, cy + 30, `Logs: ${logs}   Score: ${score}`, {
+    const sub = this.add.text(cx, cy + 30, `Score: €${score}`, {
       fontSize: '48px',
       color: '#ffffff',
       stroke: '#000000',
