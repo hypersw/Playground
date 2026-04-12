@@ -50,9 +50,9 @@ const level2: LevelDef = {
 
   // Level 2 specific: mice and cats
   mice: {
-    maxCount: 8,
-    initialCount: 5,
-    spawnInterval: 4000,
+    maxCount: 25,
+    initialCount: 15,
+    spawnInterval: 2000,
     pointsPerMouse: 5,
     fleeSpeed: 120,
     fleeRadius: 80,
