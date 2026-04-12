@@ -287,8 +287,9 @@ export const UI = {
 // =============================================================================
 
 export const CAMERA = {
-  /** Zoom level (higher = closer). 5.0 paired with 1600×1200 canvas = same visual scale as 2.5 + 800×600, but 2× sharper */
-  ZOOM: 5.0,
+  /** How many world pixels are visible vertically regardless of screen size.
+   *  240 = 15 tiles of 16px. Zoom is computed as canvasHeight / VISIBLE_HEIGHT. */
+  VISIBLE_WORLD_HEIGHT: 240,
 
   /** Camera follow smoothness (0-1, lower = smoother) */
   LERP: 0.1,

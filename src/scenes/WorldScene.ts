@@ -340,10 +340,13 @@ export class WorldScene extends Phaser.Scene {
     // Mice and cats (level 2+)
     this.setupMiceAndCats();
 
-    // Camera
+    // Camera — zoom computed from canvas height so visible tile count is constant
     this.cameras.main.startFollow(this.player, true, CAMERA.LERP, CAMERA.LERP);
-    this.cameras.main.setZoom(CAMERA.ZOOM);
     this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+    this.updateCameraZoom();
+
+    // Re-compute zoom when the window resizes
+    this.scale.on('resize', () => this.updateCameraZoom());
 
     this.cursors = this.input.keyboard!.createCursorKeys();
 
@@ -392,6 +395,11 @@ export class WorldScene extends Phaser.Scene {
       lives: this.lives,
     };
     this.scene.start('WorldScene', transition);
+  }
+
+  private updateCameraZoom(): void {
+    const zoom = this.scale.height / CAMERA.VISIBLE_WORLD_HEIGHT;
+    this.cameras.main.setZoom(zoom);
   }
 
   toggleDebugDraw(): boolean {
