@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { Player } from '../objects/Player';
 import { Log } from '../objects/Log';
 import { Anglerfish } from '../objects/Anglerfish';
+import { Mouse } from '../objects/Mouse';
+import { Cat } from '../objects/Cat';
 import { PLAYER, WATER, CAMERA, DEPTHS, ANGLERFISH, LIVES, TOUCH, SHOP, LOGS } from '../config/constants';
 import { LEVELS, STARTING_LEVEL } from '../config/levels';
 import type { LevelDef, PortalDef } from '../config/levels';
@@ -33,6 +35,8 @@ export class WorldScene extends Phaser.Scene {
   private groundLayer!: Phaser.Tilemaps.TilemapLayer | null;
   private lastRippleTime: number = 0;
   private logs!: Phaser.Physics.Arcade.Group;
+  private mice: Mouse[] = [];
+  private cats: Cat[] = [];
   public score: number = 0;
 
   // Level config
@@ -113,6 +117,8 @@ export class WorldScene extends Phaser.Scene {
 
     // Reset per-scene state
     this.anglerfishList = [];
+    this.mice = [];
+    this.cats = [];
     this.portalStates = [];
     this.isImmune = false;
     this.isHit = false;
@@ -301,6 +307,9 @@ export class WorldScene extends Phaser.Scene {
       });
     }
 
+    // Mice and cats (level 2+)
+    this.setupMiceAndCats();
+
     // Camera
     this.cameras.main.startFollow(this.player, true, CAMERA.LERP, CAMERA.LERP);
     this.cameras.main.setZoom(CAMERA.ZOOM);
@@ -398,6 +407,16 @@ export class WorldScene extends Phaser.Scene {
     for (const fish of this.anglerfishList) {
       drawActor(fish, 0xff0000, 0xffff00);
     }
+
+    // Mice: cyan body, white position
+    for (const mouse of this.mice) {
+      if (mouse.active) drawActor(mouse, 0x00ffff, 0xffffff);
+    }
+
+    // Cats: orange body, yellow position
+    for (const cat of this.cats) {
+      if (cat.active) drawActor(cat, 0xff8800, 0xffff00);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -493,6 +512,17 @@ export class WorldScene extends Phaser.Scene {
 
     for (const fish of this.anglerfishList) {
       fish.update(time, this.groundLayer);
+    }
+
+    // Mice flee from player + cats
+    const threats: Phaser.GameObjects.Sprite[] = [this.player, ...this.cats];
+    for (const mouse of this.mice) {
+      if (mouse.active) mouse.flee(threats);
+    }
+
+    // Cats update AI
+    for (const cat of this.cats) {
+      if (cat.active) cat.update();
     }
 
     this.drawDebugOverlay();
@@ -850,6 +880,164 @@ export class WorldScene extends Phaser.Scene {
       this.physics.pause();
       this.events.emit('gameOver');
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mice and cats
+  // ---------------------------------------------------------------------------
+
+  private setupMiceAndCats(): void {
+    const miceCfg = this.levelDef.mice;
+    const catsCfg = this.levelDef.cats;
+    if (!miceCfg && !catsCfg) return;
+
+    // Spawn initial mouse
+    if (miceCfg && miceCfg.maxCount > 0) {
+      this.spawnMouse();
+      if (miceCfg.spawnInterval > 0) {
+        this.time.addEvent({
+          delay: miceCfg.spawnInterval,
+          callback: this.spawnMouse,
+          callbackScope: this,
+          loop: true,
+        });
+      }
+    }
+
+    // Spawn cats
+    if (catsCfg && catsCfg.count > 0) {
+      const grassTiles = this.getGrassTiles();
+      const playerTileX = this.map.worldToTileX(this.player.x) ?? 0;
+      const playerTileY = this.map.worldToTileY(this.player.y) ?? 0;
+
+      for (let i = 0; i < catsCfg.count; i++) {
+        // Spawn far from player
+        const farTiles = grassTiles.filter(t => {
+          const dx = t.x - playerTileX;
+          const dy = t.y - playerTileY;
+          return Math.sqrt(dx * dx + dy * dy) >= 10;
+        });
+        const candidates = farTiles.length > 0 ? farTiles : grassTiles;
+        if (candidates.length === 0) continue;
+        const tile = Phaser.Utils.Array.GetRandom(candidates);
+        const cat = new Cat(
+          this,
+          tile.pixelX + this.map.tileWidth / 2,
+          tile.pixelY + this.map.tileHeight / 2,
+          this.player,
+          () => this.mice.filter(m => m.active),
+          catsCfg.speed,
+          catsCfg.sightRange,
+        );
+        this.cats.push(cat);
+
+        // Cat collides with walls
+        if (this.groundLayer) {
+          this.physics.add.collider(cat, this.groundLayer);
+        }
+
+        // Cat hurts the player
+        this.physics.add.overlap(
+          this.player,
+          cat,
+          this.handleCatHit as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+          undefined,
+          this
+        );
+      }
+    }
+  }
+
+  private spawnMouse(): void {
+    const miceCfg = this.levelDef.mice;
+    if (!miceCfg) return;
+
+    // Count active mice
+    const activeCount = this.mice.filter(m => m.active).length;
+    if (activeCount >= miceCfg.maxCount) return;
+
+    const grassTiles = this.getGrassTiles();
+    if (grassTiles.length === 0) return;
+
+    const playerTileX = this.map.worldToTileX(this.player.x) ?? 0;
+    const playerTileY = this.map.worldToTileY(this.player.y) ?? 0;
+
+    // Spawn at least 5 tiles from player
+    const farTiles = grassTiles.filter(t => {
+      const dx = t.x - playerTileX;
+      const dy = t.y - playerTileY;
+      return Math.sqrt(dx * dx + dy * dy) >= 5;
+    });
+    const candidates = farTiles.length > 0 ? farTiles : grassTiles;
+    const tile = Phaser.Utils.Array.GetRandom(candidates);
+
+    const mouse = new Mouse(
+      this,
+      tile.pixelX + this.map.tileWidth / 2,
+      tile.pixelY + this.map.tileHeight / 2,
+      miceCfg.fleeSpeed,
+      miceCfg.fleeRadius,
+    );
+
+    // Mouse collides with walls
+    if (this.groundLayer) {
+      this.physics.add.collider(mouse, this.groundLayer);
+    }
+
+    // Player collects mouse on overlap
+    this.physics.add.overlap(
+      this.player,
+      mouse,
+      () => this.collectMouse(mouse),
+      undefined,
+      this
+    );
+
+    this.mice.push(mouse);
+  }
+
+  private collectMouse(mouse: Mouse): void {
+    if (!mouse.active) return;
+    const miceCfg = this.levelDef.mice;
+    if (!miceCfg) return;
+
+    this.score += miceCfg.pointsPerMouse;
+    mouse.collect();
+    this.events.emit('scoreChanged', this.score);
+    this.checkPortalUnlocks();
+  }
+
+  private handleCatHit(
+    _player: Phaser.Types.Physics.Arcade.GameObjectWithBody,
+    _cat: Phaser.Types.Physics.Arcade.GameObjectWithBody
+  ): void {
+    // Reuse the same immunity/lives logic as anglerfish
+    if (this.isImmune || this.lives <= 0) return;
+
+    this.lives = Math.max(0, this.lives - 1);
+    this.isImmune = true;
+    this.immuneEndTime = this.time.now + LIVES.ANIMATION_DURATION;
+    this.isHit = true;
+    this.hitEndTime = this.immuneEndTime;
+
+    this.events.emit('livesChanged', this.lives, this.player.x, this.player.y);
+    if (this.lives <= 0) {
+      this.isGameOver = true;
+      this.physics.pause();
+      this.events.emit('gameOver');
+    }
+  }
+
+  private getGrassTiles(): Phaser.Tilemaps.Tile[] {
+    const tiles: Phaser.Tilemaps.Tile[] = [];
+    if (!this.groundLayer) return tiles;
+    for (let y = 0; y < this.map.height; y++) {
+      for (let x = 0; x < this.map.width; x++) {
+        const tile = this.groundLayer.getTileAt(x, y);
+        if (tile && tile.index === 2) tiles.push(tile);
+      }
+    }
+    return tiles;
   }
 
   // ---------------------------------------------------------------------------

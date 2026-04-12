@@ -62,4 +62,20 @@ export interface LevelDef {
 
   /** Starting lives for this level (null = carry over from previous level) */
   startingLives: number | null;
+
+  /** Mouse (collectible critter) configuration — omit if level has no mice */
+  mice?: {
+    maxCount: number;
+    spawnInterval: number;
+    pointsPerMouse: number;
+    fleeSpeed: number;
+    fleeRadius: number;
+  };
+
+  /** Cat (hostile NPC on grass) configuration — omit if level has no cats */
+  cats?: {
+    count: number;
+    speed: number;
+    sightRange: number;
+  };
 }

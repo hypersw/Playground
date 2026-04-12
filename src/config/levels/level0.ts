@@ -30,8 +30,15 @@ const level0: LevelDef = {
       col: 11,
       row: 12,
       targetLevel: 1,        // → The Starting Forest
-      moneyRequired: 0,      // always open
+      moneyRequired: 0,
       label: 'Level 1',
+    },
+    {
+      col: 8,
+      row: 12,
+      targetLevel: 2,        // → Cat and Beaver
+      moneyRequired: 0,
+      label: 'Level 2',
     },
   ],
 

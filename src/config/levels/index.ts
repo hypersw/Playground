@@ -8,10 +8,12 @@
 import type { LevelDef } from './types';
 import level0 from './level0';
 import level1 from './level1';
+import level2 from './level2';
 
 export const LEVELS = new Map<number, LevelDef>([
   [level0.id, level0],
   [level1.id, level1],
+  [level2.id, level2],
 ]);
 
 /** The level the player starts on when beginning a new game */

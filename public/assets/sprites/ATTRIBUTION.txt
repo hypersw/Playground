@@ -45,3 +45,27 @@ This sprite is licensed under Creative Commons Attribution-ShareAlike 4.0.
 You must give appropriate credit and indicate if changes were made.
 
 Original download: https://opengameart.org/sites/default/files/deep-sea_creatures.zip
+
+## Mouse Sprite (mouse.png)
+
+**Source:** OpenGameArt.org
+**Asset:** Rodents (Rat Rework) by Tuomo Untinen (Reemax) and Jordan Irwin (AntumDeluge)
+**URL:** https://opengameart.org/content/rodents-rat-rework
+**License:** CC BY 3.0 / CC BY-SA 3.0
+**Author:** Tuomo Untinen (Reemax), Jordan Irwin (AntumDeluge)
+**Dimensions:** 32×32 pixels per frame
+**Format:** 3 frames × 4 directions (South, West, East, North)
+
+Original download: https://opengameart.org/sites/default/files/rodent-1.0.zip
+
+## Cat Sprite (cat.png)
+
+**Source:** OpenGameArt.org
+**Asset:** Cats Rework by AntumDeluge, original art by bluecarrot16
+**URL:** https://opengameart.org/content/cats-rework
+**License:** CC BY 3.0 / CC BY-SA 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0
+**Author:** bluecarrot16 (original), AntumDeluge (rework)
+**Dimensions:** 32×48 pixels per frame
+**Format:** 3 frames × 4 directions (South, West, East, North), orange variant
+
+Original download: https://opengameart.org/sites/default/files/cat-1.0.zip

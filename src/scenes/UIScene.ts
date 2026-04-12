@@ -52,7 +52,7 @@ export class UIScene extends Phaser.Scene {
     const attrText = this.add.text(
       UI.TEXT.ATTRIBUTION.x,
       UI.TEXT.ATTRIBUTION.y,
-      'Sprites: bleutailfly, pixel_emm (CC BY-SA)',
+      'Sprites: bleutailfly, pixel_emm, Reemax, bluecarrot16 (CC BY-SA)',
       {
         fontSize: UI.TEXT.ATTRIBUTION.fontSize,
         color: UI.TEXT.ATTRIBUTION.color,
