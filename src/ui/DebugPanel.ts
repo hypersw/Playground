@@ -32,9 +32,23 @@ export class DebugPanel {
   private debugDrawEl!: HTMLSpanElement;
   private msgEl!: HTMLParagraphElement;
 
+  /** Keyboard shortcut map: key → action */
+  private hotkeys = new Map<string, () => void>();
+
   constructor(private readonly cb: DebugCallbacks) {
     this.overlay = this.buildDOM();
     document.body.appendChild(this.overlay);
+
+    // Keyboard shortcuts while panel is visible
+    window.addEventListener('keydown', (e) => {
+      if (!this.visible) return;
+      const action = this.hotkeys.get(e.key.toLowerCase());
+      if (action) {
+        e.preventDefault();
+        e.stopPropagation();
+        action();
+      }
+    });
   }
 
   toggle(): void {
@@ -227,10 +241,10 @@ export class DebugPanel {
     const row = this.makeRow();
 
     for (const [id, def] of LEVELS) {
-      const btn = this.makeBtn(`#${id} ${def.name}`, () => {
+      const btn = this.makeBtn(`${def.name}`, () => {
         this.cb.goToLevel(id);
         this.hide();
-      });
+      }, String(id));
       btn.style.fontSize = '11px';
       row.appendChild(btn);
     }
@@ -241,20 +255,25 @@ export class DebugPanel {
   private makeMoneySection(): HTMLDivElement {
     const row = this.makeRow();
 
-    for (const delta of [+50, +500, -50]) {
-      const label = delta > 0 ? `+€${delta}` : `€${delta}`;
-      row.appendChild(this.makeBtn(label, () => {
-        const newVal = Math.max(0, this.cb.getScore() + delta);
-        this.cb.setScore(newVal);
-        this.refresh();
-        this.flash(delta > 0 ? `Set to €${newVal}` : `Set to €${newVal}`);
-      }));
-    }
-
-    row.appendChild(this.makeBtn('= €150', () => {
-      this.cb.setScore(150);
+    row.appendChild(this.makeBtn('+€50', () => {
+      const v = this.cb.getScore() + 50;
+      this.cb.setScore(v);
       this.refresh();
-      this.flash('Score set to €150');
+      this.flash(`€${v}`);
+    }, '='));
+
+    row.appendChild(this.makeBtn('-€50', () => {
+      const v = Math.max(0, this.cb.getScore() - 50);
+      this.cb.setScore(v);
+      this.refresh();
+      this.flash(`€${v}`);
+    }, '-'));
+
+    row.appendChild(this.makeBtn('+€500', () => {
+      const v = this.cb.getScore() + 500;
+      this.cb.setScore(v);
+      this.refresh();
+      this.flash(`€${v}`);
     }));
 
     row.appendChild(this.makeBtn('= €0', () => {
@@ -273,13 +292,13 @@ export class DebugPanel {
       const newVal = Math.min(LIVES.INITIAL, this.cb.getLives() + 1);
       this.cb.setLives(newVal);
       this.refresh();
-    }));
+    }, 'l'));
 
     row.appendChild(this.makeBtn('-1 ❤️', () => {
       const newVal = Math.max(1, this.cb.getLives() - 1);
       this.cb.setLives(newVal);
       this.refresh();
-    }));
+    }, 'k'));
 
     row.appendChild(this.makeBtn(`Max (${LIVES.INITIAL})`, () => {
       this.cb.setLives(LIVES.INITIAL);
@@ -293,17 +312,17 @@ export class DebugPanel {
   private makeCheatsSection(): HTMLDivElement {
     const row = this.makeRow();
 
-    row.appendChild(this.makeBtn('Toggle Noclip', () => {
+    row.appendChild(this.makeBtn('Noclip', () => {
       const state = this.cb.toggleNoclip();
       this.refresh();
-      this.flash(state ? 'Noclip ON — walk through walls' : 'Noclip OFF');
-    }));
+      this.flash(state ? 'Noclip ON' : 'Noclip OFF');
+    }, 'n'));
 
-    row.appendChild(this.makeBtn('Toggle Hitboxes', () => {
+    row.appendChild(this.makeBtn('Hitboxes', () => {
       const state = this.cb.toggleDebugDraw();
       this.refresh();
       this.flash(state ? 'Hitboxes ON' : 'Hitboxes OFF');
-    }));
+    }, 'h'));
 
     return row;
   }
@@ -334,9 +353,8 @@ export class DebugPanel {
     return wrap;
   }
 
-  private makeBtn(label: string, onClick: () => void): HTMLButtonElement {
+  private makeBtn(label: string, onClick: () => void, hotkey?: string): HTMLButtonElement {
     const btn = document.createElement('button');
-    btn.textContent = label;
     Object.assign(btn.style, {
       background: 'rgba(153,68,204,0.25)',
       border: '1px solid #6633aa',
@@ -348,6 +366,34 @@ export class DebugPanel {
       cursor: 'pointer',
       whiteSpace: 'nowrap',
     });
+
+    // Button needs relative positioning for the floating key tip
+    btn.style.position = 'relative';
+    btn.textContent = label;
+
+    if (hotkey) {
+      // Floating key tip badge — top-right corner, overlapping the button edge
+      const tip = document.createElement('span');
+      tip.textContent = hotkey.toUpperCase();
+      Object.assign(tip.style, {
+        position: 'absolute',
+        top: '-7px',
+        right: '-5px',
+        background: '#cc88ff',
+        color: '#1a0a2e',
+        fontSize: '9px',
+        fontWeight: 'bold',
+        fontFamily: 'inherit',
+        lineHeight: '1',
+        padding: '2px 4px',
+        borderRadius: '3px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.5)',
+        pointerEvents: 'none',
+      });
+      btn.appendChild(tip);
+      this.hotkeys.set(hotkey.toLowerCase(), onClick);
+    }
+
     btn.addEventListener('click', onClick);
     btn.addEventListener('mouseover', () => {
       btn.style.background = 'rgba(153,68,204,0.5)';

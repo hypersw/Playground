@@ -956,6 +956,7 @@ export class WorldScene extends Phaser.Scene {
           tile.pixelY + this.map.tileHeight / 2,
           this.player,
           () => this.mice.filter(m => m.active),
+          (mouse) => this.catEatsMouse(mouse as Mouse),
           catsCfg.speed,
           catsCfg.sightRange,
         );
@@ -1022,17 +1023,6 @@ export class WorldScene extends Phaser.Scene {
       undefined,
       this
     );
-
-    // Cats eat mice on overlap
-    for (const cat of this.cats) {
-      this.physics.add.overlap(
-        cat,
-        mouse,
-        () => this.catEatsMouse(mouse),
-        undefined,
-        this
-      );
-    }
 
     this.mice.push(mouse);
   }

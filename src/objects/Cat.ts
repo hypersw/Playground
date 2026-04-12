@@ -19,10 +19,13 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
   private player!: Phaser.GameObjects.Sprite;
   private chaseSpeed: number;
   private sightRange: number;
+  private catchRadius: number;
   private lastDirection: string = 'down';
 
   /** Reference to the scene's mouse group for target selection */
   private getMice: () => Phaser.GameObjects.Sprite[];
+  /** Called when cat catches a mouse */
+  private onCatchMouse: ((mouse: Phaser.GameObjects.Sprite) => void) | null = null;
 
   constructor(
     scene: Phaser.Scene,
@@ -30,6 +33,7 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     y: number,
     player: Phaser.GameObjects.Sprite,
     getMice: () => Phaser.GameObjects.Sprite[],
+    onCatchMouse: (mouse: Phaser.GameObjects.Sprite) => void,
     speed: number = 100,
     sightRange: number = 120,
   ) {
@@ -40,8 +44,10 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
 
     this.player = player;
     this.getMice = getMice;
+    this.onCatchMouse = onCatchMouse;
     this.chaseSpeed = speed;
     this.sightRange = sightRange;
+    this.catchRadius = 10;
 
     this.setDepth(9);
 
@@ -99,7 +105,13 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
       const dx = this.target.x - this.x;
       const dy = this.target.y - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > 4) {
+
+      // Catch mouse if close enough (distance-based, not physics overlap)
+      if (this.target !== this.player && dist <= this.catchRadius && this.target.active) {
+        this.onCatchMouse?.(this.target);
+        this.target = null;
+        body.setVelocity(0, 0);
+      } else if (dist > 4) {
         body.setVelocity(
           (dx / dist) * this.chaseSpeed,
           (dy / dist) * this.chaseSpeed
