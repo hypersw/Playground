@@ -6,7 +6,7 @@
  */
 
 import type { LevelDef } from './types';
-import { SHARED_LOGS } from './shared';
+
 
 const level0: LevelDef = {
   id: 0,
@@ -35,7 +35,12 @@ const level0: LevelDef = {
     },
   ],
 
-  logs: { ...SHARED_LOGS },
+  logs: {
+    spawnInterval: 0,
+    maxCount: 0,
+    pointsPerLog: 0,
+    minSpawnDistanceTiles: 0,
+  },
 
   startingLives: null,       // carry over from previous level
 };

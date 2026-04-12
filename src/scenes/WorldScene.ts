@@ -227,13 +227,15 @@ export class WorldScene extends Phaser.Scene {
       undefined,
       this
     );
-    this.time.addEvent({
-      delay: this.levelDef.logs.spawnInterval,
-      callback: this.spawnLog,
-      callbackScope: this,
-      loop: true,
-    });
-    this.spawnLog();
+    if (this.levelDef.logs.maxCount > 0 && this.levelDef.logs.spawnInterval > 0) {
+      this.time.addEvent({
+        delay: this.levelDef.logs.spawnInterval,
+        callback: this.spawnLog,
+        callbackScope: this,
+        loop: true,
+      });
+      this.spawnLog();
+    }
 
     // Anglerfish — one per sea region
     if (this.levelDef.anglerfish.seaBounds.length > 0) {
