@@ -46,6 +46,10 @@ export class WorldScene extends Phaser.Scene {
   public isGameOver: boolean = false;
   public isShopOpen: boolean = false;
 
+  // Noclip
+  public noclip: boolean = false;
+  private wallCollider: Phaser.Physics.Arcade.Collider | null = null;
+
   // Portals
   private portalStates: PortalState[] = [];
 
@@ -99,6 +103,8 @@ export class WorldScene extends Phaser.Scene {
     this.isHit = false;
     this.isGameOver = false;
     this.isShopOpen = false;
+    this.noclip = false;
+    this.wallCollider = null;
     this.playerWalkable = null;
     this.playerPath = [];
     this.joystickActive = false;
@@ -173,7 +179,7 @@ export class WorldScene extends Phaser.Scene {
     this.player.setDepth(DEPTHS.PLAYER);
 
     if (this.groundLayer) {
-      this.physics.add.collider(this.player, this.groundLayer);
+      this.wallCollider = this.physics.add.collider(this.player, this.groundLayer);
     }
 
     // Logs
@@ -254,6 +260,39 @@ export class WorldScene extends Phaser.Scene {
 
     // Notify UI of initial state
     this.events.emit('levelStarted', this.levelDef, this.score, this.lives);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Debug / cheat methods
+  // ---------------------------------------------------------------------------
+
+  toggleNoclip(): boolean {
+    this.noclip = !this.noclip;
+    if (this.wallCollider) {
+      this.wallCollider.active = !this.noclip;
+    }
+    return this.noclip;
+  }
+
+  setScore(value: number): void {
+    this.score = Math.max(0, value);
+    this.events.emit('scoreChanged', this.score);
+    this.checkPortalUnlocks();
+  }
+
+  setLives(value: number): void {
+    this.lives = Math.max(1, Math.min(LIVES.INITIAL, value));
+    this.events.emit('livesUpdated', this.lives, this.score);
+  }
+
+  goToLevel(levelId: number): void {
+    if (!LEVELS.has(levelId)) return;
+    const transition: LevelTransition = {
+      level: levelId,
+      score: this.score,
+      lives: this.lives,
+    };
+    this.scene.start('WorldScene', transition);
   }
 
   // ---------------------------------------------------------------------------

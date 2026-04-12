@@ -22,7 +22,11 @@ Before doing any work, read the full project prompt:
 
 ## Code conventions
 
-- All tunable values live in `src/config/constants.ts` — never hardcode magic numbers in scene or object files
+- **Global tunables** live in `src/config/constants.ts` — never hardcode magic numbers in scene or object files
+- **Per-level config** lives in `src/config/levels/levelN.ts` — spawn regions, portals, anglerfish placement, log settings. Shared defaults in `shared.ts`, types in `types.ts`, registry in `index.ts`
+- To add a new level: create `src/config/levels/levelN.ts` + map JSON in `public/assets/maps/` + register in `index.ts`
+- Level 0 = Home hub (peaceful, no enemies); Level 1 = starting level; portals define navigation between levels
+- `src/ui/` for DOM overlays (ShopModal, DebugPanel)
 - `src/utils/` for reusable logic (e.g. pathfinder)
 - Objects in `src/objects/`, scenes in `src/scenes/`
 - Physics bodies sized to `PLAYER.BODY` dimensions (10×10) for maze navigation

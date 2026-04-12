@@ -3,6 +3,7 @@ import { UI, DEPTHS, LIVES } from '../config/constants';
 import { WorldScene } from './WorldScene';
 import type { LevelDef } from '../config/levels';
 import { ShopModal } from '../ui/ShopModal';
+import { DebugPanel } from '../ui/DebugPanel';
 
 export class UIScene extends Phaser.Scene {
   private scoreText!: Phaser.GameObjects.Text;
@@ -10,6 +11,7 @@ export class UIScene extends Phaser.Scene {
   private levelNameText!: Phaser.GameObjects.Text;
   private shopModal!: ShopModal;
   private shopBtn!: Phaser.GameObjects.Text;
+  private debugPanel!: DebugPanel;
 
   constructor() {
     super({ key: 'UIScene' });
@@ -156,6 +158,28 @@ export class UIScene extends Phaser.Scene {
     });
 
     // -------------------------------------------------------------------------
+    // Debug panel
+    // -------------------------------------------------------------------------
+    this.debugPanel = new DebugPanel({
+      getScore: () => (this.scene.get('WorldScene') as WorldScene).score,
+      getLives: () => (this.scene.get('WorldScene') as WorldScene).lives,
+      getCurrentLevel: () => (this.scene.get('WorldScene') as WorldScene).currentLevel,
+      getNoclip: () => (this.scene.get('WorldScene') as WorldScene).noclip,
+      setScore: (v) => (this.scene.get('WorldScene') as WorldScene).setScore(v),
+      setLives: (v) => (this.scene.get('WorldScene') as WorldScene).setLives(v),
+      goToLevel: (id) => (this.scene.get('WorldScene') as WorldScene).goToLevel(id),
+      toggleNoclip: () => (this.scene.get('WorldScene') as WorldScene).toggleNoclip(),
+    });
+
+    // ~ key toggles debug panel (listen on window to avoid Phaser key conflicts)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '`' || e.key === '~') {
+        e.preventDefault();
+        this.debugPanel.toggle();
+      }
+    });
+
+    // -------------------------------------------------------------------------
     // Bind to WorldScene events
     // -------------------------------------------------------------------------
     this.bindWorldEvents();
@@ -209,8 +233,8 @@ export class UIScene extends Phaser.Scene {
     });
 
     worldScene.events.on('levelTransition', () => {
-      // Close shop if open during transition
       this.shopModal.hide();
+      this.debugPanel.hide();
     });
   }
 
