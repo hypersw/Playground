@@ -54,8 +54,9 @@ export class WorldScene extends Phaser.Scene {
 
   // Level transition: which level the player arrived from
   private arrivedFromLevel: number | undefined = undefined;
-  // Portal cooldown to prevent immediate re-entry
-  private portalCooldownUntil: number = 0;
+  // Portal the player spawned on — stays "closed" until they walk away
+  private arrivalPortalState: PortalState | null = null;
+  private spawnedAtPortalDef: PortalDef | null = null;
 
   // Portals
   private portalStates: PortalState[] = [];
@@ -117,7 +118,7 @@ export class WorldScene extends Phaser.Scene {
     this.wallCollider = null;
     this.playerWalkable = null;
     this.playerPath = [];
-    this.portalCooldownUntil = 0;
+    this.arrivalPortalState = null;
     this.joystickActive = false;
     this.lastRippleTime = 0;
   }
@@ -200,10 +201,11 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
-    // Portal cooldown: prevent immediate re-entry after spawning on a portal
-    if (spawnedAtPortal) {
-      this.portalCooldownUntil = Date.now() + 1000;
-    }
+    // The arrival portal will be marked after setupPortals() so the player
+    // must walk away before it activates. We store the def to match later.
+    this.spawnedAtPortalDef = spawnedAtPortal
+      ? this.levelDef.portals.find(p => p.targetLevel === this.arrivedFromLevel) ?? null
+      : null;
 
     this.player = new Player(this, playerX, playerY);
     this.player.setDepth(DEPTHS.PLAYER);
@@ -400,6 +402,20 @@ export class WorldScene extends Phaser.Scene {
 
       if (this.isHit && time >= this.hitEndTime) this.isHit = false;
       if (this.isImmune && time >= this.immuneEndTime) this.isImmune = false;
+
+      // Distance-based hysteresis: once player walks 2 tiles away from the
+      // arrival portal, open it so they can re-enter later.
+      if (this.arrivalPortalState) {
+        const ap = this.arrivalPortalState;
+        const tileSize = this.map.tileWidth;
+        const portalX = ap.def.col * tileSize + tileSize / 2;
+        const portalY = ap.def.row * tileSize + tileSize / 2;
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, portalX, portalY);
+        if (dist > tileSize * 2) {
+          this.drawPortalOpen(ap);
+          this.arrivalPortalState = null;
+        }
+      }
     }
 
     for (const fish of this.anglerfishList) {
@@ -776,18 +792,21 @@ export class WorldScene extends Phaser.Scene {
       const gfx = this.add.graphics();
       gfx.setDepth(DEPTHS.EFFECTS + 1);
 
-      // Price tag (hidden if already open or free)
+      // Label — render at high res and scale down so text stays crisp at zoom
+      const zoom = this.cameras.main.zoom;
+      const labelScale = 1 / zoom;
       const priceTag = this.add.text(
         cx, cy - tileSize * 0.9,
         portalDef.moneyRequired > 0 ? `€${portalDef.moneyRequired}` : portalDef.label,
         {
-          fontSize: '5px',
+          fontSize: `${Math.round(5 * zoom)}px`,
           color: '#88ccff',
           stroke: '#000000',
-          strokeThickness: 1,
+          strokeThickness: Math.round(1 * zoom),
         }
       );
       priceTag.setOrigin(0.5, 1);
+      priceTag.setScale(labelScale);
       priceTag.setDepth(DEPTHS.EFFECTS + 2);
 
       // Overlap zone
@@ -807,7 +826,7 @@ export class WorldScene extends Phaser.Scene {
         this.player,
         zone,
         () => {
-          if (state.open && Date.now() > this.portalCooldownUntil) {
+          if (state.open && state !== this.arrivalPortalState) {
             this.handlePortalReached(state);
           }
         },
@@ -817,12 +836,19 @@ export class WorldScene extends Phaser.Scene {
 
       this.portalStates.push(state);
 
-      if (isOpen) {
+      // If the player spawned on this portal, keep it visually closed
+      // until they walk away (distance-based hysteresis)
+      const isArrivalPortal = this.spawnedAtPortalDef === portalDef;
+      if (isArrivalPortal) {
+        this.arrivalPortalState = state;
+        this.drawPortalClosed(state);
+      } else if (isOpen) {
         this.drawPortalOpen(state);
       } else {
         this.drawPortalClosed(state);
       }
     }
+    this.spawnedAtPortalDef = null; // consumed
   }
 
   private drawPortalClosed(state: PortalState): void {
@@ -892,15 +918,18 @@ export class WorldScene extends Phaser.Scene {
     const cx = state.def.col * tileSize + tileSize / 2;
     const cy = state.def.row * tileSize + tileSize / 2;
 
+    const zoom = this.cameras.main.zoom;
+    const labelScale = 1 / zoom;
     const text = this.add.text(cx, cy - tileSize * 1.5, `Portal to ${state.def.label} opened!`, {
-      fontSize: '6px',
+      fontSize: `${Math.round(6 * zoom)}px`,
       color: '#ffffff',
       stroke: '#000000',
-      strokeThickness: 2,
+      strokeThickness: Math.round(2 * zoom),
       backgroundColor: '#00000088',
-      padding: { x: 3, y: 2 },
+      padding: { x: Math.round(3 * zoom), y: Math.round(2 * zoom) },
     });
     text.setOrigin(0.5, 1);
+    text.setScale(labelScale);
     text.setDepth(DEPTHS.UI - 2);
 
     this.tweens.add({
