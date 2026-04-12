@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { directionFromVelocity } from '../utils/direction';
 
 /**
  * Mouse — collectible critter that spawns on grass.
@@ -139,18 +140,10 @@ export class Mouse extends Phaser.Physics.Arcade.Sprite {
   }
 
   private updateAnimation(body: Phaser.Physics.Arcade.Body): void {
-    if (body.velocity.x < 0) {
-      this.anims.play('mouse-walk-left', true);
-      this.lastDirection = 'left';
-    } else if (body.velocity.x > 0) {
-      this.anims.play('mouse-walk-right', true);
-      this.lastDirection = 'right';
-    } else if (body.velocity.y < 0) {
-      this.anims.play('mouse-walk-up', true);
-      this.lastDirection = 'up';
-    } else if (body.velocity.y > 0) {
-      this.anims.play('mouse-walk-down', true);
-      this.lastDirection = 'down';
+    const dir = directionFromVelocity(body.velocity.x, body.velocity.y);
+    if (dir) {
+      this.lastDirection = dir;
+      this.anims.play(`mouse-walk-${dir}`, true);
     } else {
       this.anims.play(`mouse-idle-${this.lastDirection}`, true);
     }

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { directionFromVelocity } from '../utils/direction';
 
 /**
  * Cat — hostile NPC on grass levels.
@@ -146,18 +147,10 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     }
 
     // Animation
-    if (body.velocity.x < 0) {
-      this.anims.play('cat-walk-left', true);
-      this.lastDirection = 'left';
-    } else if (body.velocity.x > 0) {
-      this.anims.play('cat-walk-right', true);
-      this.lastDirection = 'right';
-    } else if (body.velocity.y < 0) {
-      this.anims.play('cat-walk-up', true);
-      this.lastDirection = 'up';
-    } else if (body.velocity.y > 0) {
-      this.anims.play('cat-walk-down', true);
-      this.lastDirection = 'down';
+    const dir = directionFromVelocity(body.velocity.x, body.velocity.y);
+    if (dir) {
+      this.lastDirection = dir;
+      this.anims.play(`cat-walk-${dir}`, true);
     } else {
       this.anims.play(`cat-idle-${this.lastDirection}`, true);
     }

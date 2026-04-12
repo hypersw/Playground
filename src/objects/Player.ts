@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { PLAYER } from '../config/constants';
+import { directionFromVelocity } from '../utils/direction';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private speed: number = PLAYER.SPEED;
@@ -107,18 +108,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     // Animation driven by actual velocity so all input modes share the same logic
-    if (body.velocity.x < 0) {
-      this.anims.play('walk-left', true);
-      this.lastDirection = 'left';
-    } else if (body.velocity.x > 0) {
-      this.anims.play('walk-right', true);
-      this.lastDirection = 'right';
-    } else if (body.velocity.y < 0) {
-      this.anims.play('walk-up', true);
-      this.lastDirection = 'up';
-    } else if (body.velocity.y > 0) {
-      this.anims.play('walk-down', true);
-      this.lastDirection = 'down';
+    const dir = directionFromVelocity(body.velocity.x, body.velocity.y);
+    if (dir) {
+      this.lastDirection = dir;
+      this.anims.play(`walk-${dir}`, true);
     } else {
       this.anims.play(`idle-${this.lastDirection}`, true);
     }
