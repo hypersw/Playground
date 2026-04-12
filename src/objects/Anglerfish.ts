@@ -40,9 +40,12 @@ export class Anglerfish extends Phaser.Physics.Arcade.Sprite {
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setCollideWorldBounds(true);
 
-    // Match player collision body so narrow passages are navigable
+    // Match player collision body size so narrow passages are navigable.
+    // Center the body on the sprite's origin (48×48 frame, origin 0.5/0.5).
     body.setSize(PLAYER.BODY.WIDTH, PLAYER.BODY.HEIGHT);
-    body.setOffset(PLAYER.BODY.OFFSET_X, PLAYER.BODY.OFFSET_Y);
+    const bx = (this.width * 0.5) - PLAYER.BODY.WIDTH / 2;
+    const by = (this.height * 0.5) - PLAYER.BODY.HEIGHT / 2;
+    body.setOffset(bx, by);
 
     this.target = target;
     this.deactivateDistancePx = deactivateDistancePx;
