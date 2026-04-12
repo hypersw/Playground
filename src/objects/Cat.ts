@@ -58,16 +58,16 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
   private createAnimations(): void {
     if (!this.scene.anims.exists('cat-idle-down')) {
       const s = this.scene;
+      // Cat sprite row order: S(0), E(1), N(2), W(3)
       s.anims.create({ key: 'cat-idle-down',  frames: [{ key: 'cat', frame: 1 }],  frameRate: 1 });
-      // Cat sprite row order: S, E, W, N (swapped from beaver's S, W, E, N)
       s.anims.create({ key: 'cat-idle-right', frames: [{ key: 'cat', frame: 4 }],  frameRate: 1 });
-      s.anims.create({ key: 'cat-idle-left',  frames: [{ key: 'cat', frame: 7 }],  frameRate: 1 });
-      s.anims.create({ key: 'cat-idle-up',    frames: [{ key: 'cat', frame: 10 }], frameRate: 1 });
+      s.anims.create({ key: 'cat-idle-up',    frames: [{ key: 'cat', frame: 7 }],  frameRate: 1 });
+      s.anims.create({ key: 'cat-idle-left',  frames: [{ key: 'cat', frame: 10 }], frameRate: 1 });
 
       s.anims.create({ key: 'cat-walk-down',  frames: s.anims.generateFrameNumbers('cat', { start: 0, end: 2 }),  frameRate: 6, repeat: -1 });
       s.anims.create({ key: 'cat-walk-right', frames: s.anims.generateFrameNumbers('cat', { start: 3, end: 5 }),  frameRate: 6, repeat: -1 });
-      s.anims.create({ key: 'cat-walk-left',  frames: s.anims.generateFrameNumbers('cat', { start: 6, end: 8 }),  frameRate: 6, repeat: -1 });
-      s.anims.create({ key: 'cat-walk-up',    frames: s.anims.generateFrameNumbers('cat', { start: 9, end: 11 }), frameRate: 6, repeat: -1 });
+      s.anims.create({ key: 'cat-walk-up',    frames: s.anims.generateFrameNumbers('cat', { start: 6, end: 8 }),  frameRate: 6, repeat: -1 });
+      s.anims.create({ key: 'cat-walk-left',  frames: s.anims.generateFrameNumbers('cat', { start: 9, end: 11 }), frameRate: 6, repeat: -1 });
     }
   }
 
