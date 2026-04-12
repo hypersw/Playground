@@ -921,9 +921,12 @@ export class WorldScene extends Phaser.Scene {
     const catsCfg = this.levelDef.cats;
     if (!miceCfg && !catsCfg) return;
 
-    // Spawn initial mouse
+    // Spawn initial batch of mice
     if (miceCfg && miceCfg.maxCount > 0) {
-      this.spawnMouse();
+      const initial = miceCfg.initialCount ?? 1;
+      for (let i = 0; i < initial; i++) {
+        this.spawnMouse();
+      }
       if (miceCfg.spawnInterval > 0) {
         this.time.addEvent({
           delay: miceCfg.spawnInterval,
@@ -937,8 +940,6 @@ export class WorldScene extends Phaser.Scene {
     // Spawn cats
     if (catsCfg && catsCfg.count > 0 && this.groundLayer) {
       const grassTiles = this.getGrassTiles();
-      const playerTileX = this.map.worldToTileX(this.player.x) ?? 0;
-      const playerTileY = this.map.worldToTileY(this.player.y) ?? 0;
 
       // Build grass-walkable grid for cat A* (grass=2 and portal=3 are walkable)
       const catWalkable: boolean[][] = [];
@@ -951,16 +952,24 @@ export class WorldScene extends Phaser.Scene {
         catWalkable.push(rowArr);
       }
 
+      // Split map into N vertical strips, spawn one cat per strip
+      const mapW = this.map.width;
+      const stripW = Math.floor(mapW / catsCfg.count);
+
       for (let i = 0; i < catsCfg.count; i++) {
-        // Spawn far from player
-        const farTiles = grassTiles.filter(t => {
-          const dx = t.x - playerTileX;
-          const dy = t.y - playerTileY;
-          return Math.sqrt(dx * dx + dy * dy) >= 10;
-        });
-        const candidates = farTiles.length > 0 ? farTiles : grassTiles;
-        if (candidates.length === 0) continue;
-        const tile = Phaser.Utils.Array.GetRandom(candidates);
+        const stripMinCol = i * stripW;
+        const stripMaxCol = (i === catsCfg.count - 1) ? mapW - 1 : (i + 1) * stripW - 1;
+        const stripCenter = Math.floor((stripMinCol + stripMaxCol) / 2);
+
+        // Find grass tiles in this strip, prefer near center
+        const stripGrass = grassTiles.filter(t => t.x >= stripMinCol && t.x <= stripMaxCol);
+        if (stripGrass.length === 0) continue;
+
+        // Sort by distance to strip center, pick from nearest quarter
+        stripGrass.sort((a, b) => Math.abs(a.x - stripCenter) - Math.abs(b.x - stripCenter));
+        const nearCenter = stripGrass.slice(0, Math.max(1, Math.floor(stripGrass.length / 4)));
+        const tile = Phaser.Utils.Array.GetRandom(nearCenter);
+
         const cat = new Cat(
           this,
           tile.pixelX + this.map.tileWidth / 2,
@@ -973,6 +982,7 @@ export class WorldScene extends Phaser.Scene {
           catsCfg.speed,
           catsCfg.sightRange,
         );
+        cat.catId = i;
         this.cats.push(cat);
 
         // Cat collides with walls + water
@@ -988,6 +998,11 @@ export class WorldScene extends Phaser.Scene {
           undefined,
           this
         );
+      }
+
+      // Wire up anti-herd: each cat knows about all others
+      for (const cat of this.cats) {
+        cat.setOtherCats(() => this.cats);
       }
     }
   }

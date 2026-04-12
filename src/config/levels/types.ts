@@ -66,6 +66,8 @@ export interface LevelDef {
   /** Mouse (collectible critter) configuration — omit if level has no mice */
   mice?: {
     maxCount: number;
+    /** Mice to spawn immediately on level start */
+    initialCount: number;
     spawnInterval: number;
     pointsPerMouse: number;
     fleeSpeed: number;
