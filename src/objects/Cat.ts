@@ -31,6 +31,9 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
   /** Stuck detection: if chasing the same target and barely moving, give up */
   private stuckTarget: Phaser.GameObjects.Sprite | null = null;
   private stuckSince: number = 0;
+  /** Blacklisted mice the cat gave up on — maps sprite to expiry timestamp */
+  private blacklist = new Map<Phaser.GameObjects.Sprite, number>();
+  private static readonly BLACKLIST_DURATION = 5000;
 
   constructor(
     scene: Phaser.Scene,
@@ -52,7 +55,9 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     this.onCatchMouse = onCatchMouse;
     this.chaseSpeed = speed;
     this.sightRange = sightRange;
-    this.catchRadius = 16;
+    // One tile width — needs to be generous because wall collision can keep
+    // bodies apart even when sprites visually overlap
+    this.catchRadius = 20;
 
     this.setDepth(9);
 
@@ -84,14 +89,20 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
 
   update(): void {
     const body = this.body as Phaser.Physics.Arcade.Body;
+    const now = this.scene.time.now;
 
-    // Pick target: nearest mouse in range, else player if in range
+    // Expire old blacklist entries
+    for (const [sprite, expiry] of this.blacklist) {
+      if (now > expiry || !sprite.active) this.blacklist.delete(sprite);
+    }
+
+    // Pick target: nearest non-blacklisted mouse in range, else player
     this.target = null;
     const mice = this.getMice();
     let bestDist = this.sightRange;
 
     for (const m of mice) {
-      if (!m.active) continue;
+      if (!m.active || this.blacklist.has(m)) continue;
       const d = Phaser.Math.Distance.Between(this.x, this.y, m.x, m.y);
       if (d < bestDist) {
         bestDist = d;
@@ -114,6 +125,7 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
       // Catch mouse if close enough (distance-based, not physics overlap)
       if (this.target !== this.player && dist <= this.catchRadius && this.target.active) {
         this.onCatchMouse?.(this.target);
+        this.blacklist.delete(this.target);
         this.stuckTarget = null;
         this.target = null;
         body.setVelocity(0, 0);
@@ -123,20 +135,22 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
           (dy / dist) * this.chaseSpeed
         );
 
-        // Stuck detection: if barely moving while chasing, give up after 2s
-        const speed = body.velocity.length();
-        if (this.target !== this.player && speed < this.chaseSpeed * 0.15) {
-          if (this.stuckTarget !== this.target) {
-            this.stuckTarget = this.target;
-            this.stuckSince = this.scene.time.now;
-          } else if (this.scene.time.now - this.stuckSince > 2000) {
-            // Give up on this mouse — ignore it for a while
-            this.stuckTarget = null;
-            this.target = null;
-            body.setVelocity(0, 0);
+        // Stuck detection: if barely moving while chasing a mouse, blacklist after 1.5s
+        if (this.target !== this.player) {
+          const speed = body.velocity.length();
+          if (speed < this.chaseSpeed * 0.2) {
+            if (this.stuckTarget !== this.target) {
+              this.stuckTarget = this.target;
+              this.stuckSince = now;
+            } else if (now - this.stuckSince > 1500) {
+              this.blacklist.set(this.target, now + Cat.BLACKLIST_DURATION);
+              this.stuckTarget = null;
+              this.target = null;
+              body.setVelocity(0, 0);
+            }
+          } else {
+            this.stuckSince = now;
           }
-        } else {
-          this.stuckSince = this.scene.time.now;
         }
       } else {
         body.setVelocity(0, 0);

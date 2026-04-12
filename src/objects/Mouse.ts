@@ -50,15 +50,15 @@ export class Mouse extends Phaser.Physics.Arcade.Sprite {
   private createAnimations(): void {
     if (!this.scene.anims.exists('mouse-idle-down')) {
       const s = this.scene;
-      // Sprite row order: S, E, N, W (rows 0-3)
-      s.anims.create({ key: 'mouse-idle-down',  frames: [{ key: 'mouse', frame: 1 }],  frameRate: 1 });
+      // Sprite row order: N, E, S, W (rows 0-3) — confirmed by user
+      s.anims.create({ key: 'mouse-idle-up',    frames: [{ key: 'mouse', frame: 1 }],  frameRate: 1 });
       s.anims.create({ key: 'mouse-idle-right', frames: [{ key: 'mouse', frame: 4 }],  frameRate: 1 });
-      s.anims.create({ key: 'mouse-idle-up',    frames: [{ key: 'mouse', frame: 7 }],  frameRate: 1 });
+      s.anims.create({ key: 'mouse-idle-down',  frames: [{ key: 'mouse', frame: 7 }],  frameRate: 1 });
       s.anims.create({ key: 'mouse-idle-left',  frames: [{ key: 'mouse', frame: 10 }], frameRate: 1 });
 
-      s.anims.create({ key: 'mouse-walk-down',  frames: s.anims.generateFrameNumbers('mouse', { start: 0, end: 2 }),  frameRate: 8, repeat: -1 });
+      s.anims.create({ key: 'mouse-walk-up',    frames: s.anims.generateFrameNumbers('mouse', { start: 0, end: 2 }),  frameRate: 8, repeat: -1 });
       s.anims.create({ key: 'mouse-walk-right', frames: s.anims.generateFrameNumbers('mouse', { start: 3, end: 5 }),  frameRate: 8, repeat: -1 });
-      s.anims.create({ key: 'mouse-walk-up',    frames: s.anims.generateFrameNumbers('mouse', { start: 6, end: 8 }),  frameRate: 8, repeat: -1 });
+      s.anims.create({ key: 'mouse-walk-down',  frames: s.anims.generateFrameNumbers('mouse', { start: 6, end: 8 }),  frameRate: 8, repeat: -1 });
       s.anims.create({ key: 'mouse-walk-left',  frames: s.anims.generateFrameNumbers('mouse', { start: 9, end: 11 }), frameRate: 8, repeat: -1 });
     }
   }
