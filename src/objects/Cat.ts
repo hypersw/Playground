@@ -27,6 +27,10 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
   /** Called when cat catches a mouse */
   private onCatchMouse: ((mouse: Phaser.GameObjects.Sprite) => void) | null = null;
 
+  /** Stuck detection: if chasing the same target and barely moving, give up */
+  private stuckTarget: Phaser.GameObjects.Sprite | null = null;
+  private stuckSince: number = 0;
+
   constructor(
     scene: Phaser.Scene,
     x: number,
@@ -47,7 +51,7 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     this.onCatchMouse = onCatchMouse;
     this.chaseSpeed = speed;
     this.sightRange = sightRange;
-    this.catchRadius = 10;
+    this.catchRadius = 16;
 
     this.setDepth(9);
 
@@ -109,6 +113,7 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
       // Catch mouse if close enough (distance-based, not physics overlap)
       if (this.target !== this.player && dist <= this.catchRadius && this.target.active) {
         this.onCatchMouse?.(this.target);
+        this.stuckTarget = null;
         this.target = null;
         body.setVelocity(0, 0);
       } else if (dist > 4) {
@@ -116,11 +121,28 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
           (dx / dist) * this.chaseSpeed,
           (dy / dist) * this.chaseSpeed
         );
+
+        // Stuck detection: if barely moving while chasing, give up after 2s
+        const speed = body.velocity.length();
+        if (this.target !== this.player && speed < this.chaseSpeed * 0.15) {
+          if (this.stuckTarget !== this.target) {
+            this.stuckTarget = this.target;
+            this.stuckSince = this.scene.time.now;
+          } else if (this.scene.time.now - this.stuckSince > 2000) {
+            // Give up on this mouse — ignore it for a while
+            this.stuckTarget = null;
+            this.target = null;
+            body.setVelocity(0, 0);
+          }
+        } else {
+          this.stuckSince = this.scene.time.now;
+        }
       } else {
         body.setVelocity(0, 0);
       }
     } else {
       body.setVelocity(0, 0);
+      this.stuckTarget = null;
     }
 
     // Animation
