@@ -76,16 +76,16 @@ export class PreloaderScene extends Phaser.Scene {
       frameHeight: 48,
     });
 
-    // Mouse sprite (CC BY by Reemax / AntumDeluge)
+    // Mouse sprite (CC BY by Reemax / AntumDeluge) — padded to center body
     this.load.spritesheet('mouse', 'assets/sprites/mouse.png', {
-      frameWidth: 32,
-      frameHeight: 32,
+      frameWidth: 36,
+      frameHeight: 36,
     });
 
-    // Cat sprite (CC BY by bluecarrot16 / AntumDeluge)
+    // Cat sprite (CC BY by bluecarrot16 / AntumDeluge) — padded to center body
     this.load.spritesheet('cat', 'assets/sprites/cat.png', {
-      frameWidth: 32,
-      frameHeight: 48,
+      frameWidth: 34,
+      frameHeight: 52,
     });
   }
 

@@ -1,25 +1,18 @@
 import Phaser from 'phaser';
 
-/** Per-direction body center in sprite-local pixel coords (32×32 frame).
- *  Measured from the torso center in the pixel art, excluding head/tail. */
-const MOUSE_BODY_CENTER: Record<string, { x: number; y: number }> = {
-  down:  { x: 15.5, y: 23.5 },  // South: torso rows 21-26, cols 11-20
-  left:  { x: 14,   y: 25   },  // West:  torso rows 23-27, cols 6-22
-  right: { x: 15.5, y: 22.5 },  // East:  torso rows 18-27, cols 11-20
-  up:    { x: 18,   y: 25   },  // North: torso rows 23-27, cols 10-26
-};
-
 /**
  * Mouse — collectible critter that spawns on grass.
  *
  * Runs away from the nearest threat (player or cat).
  * Collected by the player on overlap for money.
+ *
+ * Sprite frames are 36×36 (padded so the body torso center is at frame center).
  */
 export class Mouse extends Phaser.Physics.Arcade.Sprite {
+  private static readonly BODY_SIZE = 8;
   private fleeSpeed: number;
   private fleeRadius: number;
   private lastDirection: string = 'down';
-  private static readonly BODY_SIZE = 8;
 
   constructor(scene: Phaser.Scene, x: number, y: number, speed: number = 120, fleeRadius: number = 80) {
     super(scene, x, y, 'mouse', 1);
@@ -27,16 +20,15 @@ export class Mouse extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Origin at average body center; per-direction offset updated each frame
-    this.setOrigin(0.50, 0.75);
-
     this.fleeSpeed = speed;
     this.fleeRadius = fleeRadius;
 
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setCollideWorldBounds(true);
+    // Body centered on the frame center (body center is pre-aligned in the sprite)
+    const half = Mouse.BODY_SIZE / 2;
     body.setSize(Mouse.BODY_SIZE, Mouse.BODY_SIZE);
-    this.syncBodyOffset();
+    body.setOffset(this.width * 0.5 - half, this.height * 0.5 - half);
 
     this.setDepth(8);
     this.createAnimations();
@@ -64,7 +56,6 @@ export class Mouse extends Phaser.Physics.Arcade.Sprite {
   flee(threats: Phaser.GameObjects.Sprite[]): void {
     const body = this.body as Phaser.Physics.Arcade.Body;
 
-    // Find nearest threat within flee radius
     let nearestDist = Infinity;
     let fleeFromX = 0;
     let fleeFromY = 0;
@@ -82,7 +73,6 @@ export class Mouse extends Phaser.Physics.Arcade.Sprite {
     }
 
     if (hasThreat) {
-      // Run away from threat
       const dx = this.x - fleeFromX;
       const dy = this.y - fleeFromY;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -112,15 +102,6 @@ export class Mouse extends Phaser.Physics.Arcade.Sprite {
     } else {
       this.anims.play(`mouse-idle-${this.lastDirection}`, true);
     }
-
-    this.syncBodyOffset();
-  }
-
-  /** Update physics body offset to match the current direction's torso center */
-  private syncBodyOffset(): void {
-    const c = MOUSE_BODY_CENTER[this.lastDirection];
-    const half = Mouse.BODY_SIZE / 2;
-    (this.body as Phaser.Physics.Arcade.Body).setOffset(c.x - half, c.y - half);
   }
 
   /** Called when collected by the player */
