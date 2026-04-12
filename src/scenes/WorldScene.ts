@@ -147,6 +147,11 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
+    // Set physics world bounds to map size BEFORE creating any entities
+    // (RESIZE mode makes the default bounds match the canvas/window size,
+    //  which on phones can be much smaller than the map)
+    this.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+
     this.groundLayer = this.map.createLayer('Ground', tileset, 0, 0);
     if (this.groundLayer) this.groundLayer.setDepth(DEPTHS.GROUND);
 
@@ -342,7 +347,6 @@ export class WorldScene extends Phaser.Scene {
 
     // Camera — zoom computed from canvas height so visible tile count is constant
     this.cameras.main.startFollow(this.player, true, CAMERA.LERP, CAMERA.LERP);
-    this.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
     this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
     this.updateCameraZoom();
 
