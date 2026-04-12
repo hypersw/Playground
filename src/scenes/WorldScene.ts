@@ -935,10 +935,21 @@ export class WorldScene extends Phaser.Scene {
     }
 
     // Spawn cats
-    if (catsCfg && catsCfg.count > 0) {
+    if (catsCfg && catsCfg.count > 0 && this.groundLayer) {
       const grassTiles = this.getGrassTiles();
       const playerTileX = this.map.worldToTileX(this.player.x) ?? 0;
       const playerTileY = this.map.worldToTileY(this.player.y) ?? 0;
+
+      // Build grass-walkable grid for cat A* (grass=2 and portal=3 are walkable)
+      const catWalkable: boolean[][] = [];
+      for (let row = 0; row < this.map.height; row++) {
+        const rowArr: boolean[] = [];
+        for (let col = 0; col < this.map.width; col++) {
+          const tile = this.groundLayer.getTileAt(col, row);
+          rowArr.push(tile !== null && (tile.index === 2 || tile.index === 3));
+        }
+        catWalkable.push(rowArr);
+      }
 
       for (let i = 0; i < catsCfg.count; i++) {
         // Spawn far from player
@@ -957,6 +968,8 @@ export class WorldScene extends Phaser.Scene {
           this.player,
           () => this.mice.filter(m => m.active),
           (mouse) => this.catEatsMouse(mouse as Mouse),
+          catWalkable,
+          this.map,
           catsCfg.speed,
           catsCfg.sightRange,
         );
