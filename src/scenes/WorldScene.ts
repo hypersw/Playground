@@ -2,8 +2,26 @@ import Phaser from 'phaser';
 import { Player } from '../objects/Player';
 import { Log } from '../objects/Log';
 import { Anglerfish } from '../objects/Anglerfish';
-import { PLAYER, WATER, LOGS, CAMERA, DEPTHS, ANGLERFISH, LIVES, TOUCH, EXIT, SHOP } from '../config/constants';
+import { PLAYER, WATER, CAMERA, DEPTHS, ANGLERFISH, LIVES, TOUCH, SHOP, LOGS } from '../config/constants';
+import { LEVELS, STARTING_LEVEL } from '../config/levels';
+import type { LevelDef, PortalDef } from '../config/levels';
 import { findPath } from '../utils/pathfinder';
+
+/** Data passed between levels via scene.start() */
+export interface LevelTransition {
+  level: number;
+  score: number;
+  lives: number;
+}
+
+interface PortalState {
+  def: PortalDef;
+  open: boolean;
+  gfx: Phaser.GameObjects.Graphics;
+  pulseTween: Phaser.Tweens.Tween | null;
+  priceTag: Phaser.GameObjects.Text;
+  zone: Phaser.GameObjects.Zone;
+}
 
 export class WorldScene extends Phaser.Scene {
   public player!: Player;
@@ -15,6 +33,10 @@ export class WorldScene extends Phaser.Scene {
   private logs!: Phaser.Physics.Arcade.Group;
   public score: number = 0;
 
+  // Level config
+  private levelDef!: LevelDef;
+  public currentLevel: number = STARTING_LEVEL;
+
   // Lives / immunity / game state
   public lives: number = LIVES.INITIAL;
   private isImmune: boolean = false;
@@ -24,11 +46,8 @@ export class WorldScene extends Phaser.Scene {
   public isGameOver: boolean = false;
   public isShopOpen: boolean = false;
 
-  // Exit portal
-  private portalOpen: boolean = false;
-  private portalGfx!: Phaser.GameObjects.Graphics;
-  private portalPulseTween: Phaser.Tweens.Tween | null = null;
-  private portalPriceTag!: Phaser.GameObjects.Text;
+  // Portals
+  private portalStates: PortalState[] = [];
 
   // -------------------------------------------------------------------------
   // Touch / pointer input
@@ -38,7 +57,7 @@ export class WorldScene extends Phaser.Scene {
 
   private joystickActive = false;
   private joystickDelta = { x: 0, y: 0 };
-  private joystickRadius = 100; // computed at create() time from display size
+  private joystickRadius = 100;
   private joystickOuter!: Phaser.GameObjects.Graphics;
   private joystickInner!: Phaser.GameObjects.Graphics;
 
@@ -52,8 +71,42 @@ export class WorldScene extends Phaser.Scene {
     super({ key: 'WorldScene' });
   }
 
+  init(data?: Partial<LevelTransition>): void {
+    this.currentLevel = data?.level ?? STARTING_LEVEL;
+    this.score = data?.score ?? 0;
+
+    const def = LEVELS.get(this.currentLevel);
+    if (!def) {
+      console.error(`No level definition for level ${this.currentLevel}`);
+      this.levelDef = LEVELS.get(STARTING_LEVEL)!;
+    } else {
+      this.levelDef = def;
+    }
+
+    // Lives: use carry-over if provided, else level default, else global default
+    if (data?.lives !== undefined) {
+      this.lives = data.lives;
+    } else if (this.levelDef.startingLives !== null) {
+      this.lives = this.levelDef.startingLives;
+    } else {
+      this.lives = LIVES.INITIAL;
+    }
+
+    // Reset per-scene state
+    this.anglerfishList = [];
+    this.portalStates = [];
+    this.isImmune = false;
+    this.isHit = false;
+    this.isGameOver = false;
+    this.isShopOpen = false;
+    this.playerWalkable = null;
+    this.playerPath = [];
+    this.joystickActive = false;
+    this.lastRippleTime = 0;
+  }
+
   create(): void {
-    this.map = this.make.tilemap({ key: 'world-map' });
+    this.map = this.make.tilemap({ key: this.levelDef.mapKey });
     const tileset = this.map.addTilesetImage('tileset', 'tileset');
 
     if (!tileset) {
@@ -70,7 +123,7 @@ export class WorldScene extends Phaser.Scene {
 
     // Runtime fish-only collision layer (walls + grass collidable, water not)
     let fishLayer: Phaser.Tilemaps.TilemapLayer | null = null;
-    if (this.groundLayer) {
+    if (this.groundLayer && this.levelDef.anglerfish.seaBounds.length > 0) {
       const tileData: number[][] = [];
       for (let row = 0; row < this.map.height; row++) {
         const rowArr: number[] = [];
@@ -102,9 +155,9 @@ export class WorldScene extends Phaser.Scene {
 
     if (this.groundLayer) {
       const spawnTiles: Phaser.Tilemaps.Tile[] = [];
-      const { MIN_COL, MAX_COL, MIN_ROW, MAX_ROW } = PLAYER.SPAWN_REGION;
-      for (let y = MIN_ROW; y <= MAX_ROW; y++) {
-        for (let x = MIN_COL; x <= MAX_COL; x++) {
+      const { minCol, maxCol, minRow, maxRow } = this.levelDef.spawnRegion;
+      for (let y = minRow; y <= maxRow; y++) {
+        for (let x = minCol; x <= maxCol; x++) {
           const tile = this.groundLayer.getTileAt(x, y);
           if (tile && tile.index === 2) spawnTiles.push(tile);
         }
@@ -126,7 +179,7 @@ export class WorldScene extends Phaser.Scene {
     // Logs
     this.logs = this.physics.add.group({
       classType: Log,
-      maxSize: LOGS.MAX_COUNT,
+      maxSize: this.levelDef.logs.maxCount,
       runChildUpdate: false,
     });
     this.physics.add.overlap(
@@ -137,50 +190,54 @@ export class WorldScene extends Phaser.Scene {
       this
     );
     this.time.addEvent({
-      delay: LOGS.SPAWN_INTERVAL,
+      delay: this.levelDef.logs.spawnInterval,
       callback: this.spawnLog,
       callbackScope: this,
       loop: true,
     });
     this.spawnLog();
 
-    // Anglerfish
-    const waterTiles = this.getWaterTiles();
-    const playerTileX = this.map.worldToTileX(this.player.x) ?? 0;
-    const playerTileY = this.map.worldToTileY(this.player.y) ?? 0;
+    // Anglerfish — one per sea region
+    if (this.levelDef.anglerfish.seaBounds.length > 0) {
+      const waterTiles = this.getWaterTiles();
+      const playerTileX = this.map.worldToTileX(this.player.x) ?? 0;
+      const playerTileY = this.map.worldToTileY(this.player.y) ?? 0;
 
-    const spawnAnglerfish = (pool: Phaser.Tilemaps.Tile[]) => {
-      if (pool.length === 0) return;
-      const farTiles = pool.filter(t => {
-        const dx = t.x - playerTileX;
-        const dy = t.y - playerTileY;
-        return Math.sqrt(dx * dx + dy * dy) >= 10;
+      for (const bounds of this.levelDef.anglerfish.seaBounds) {
+        const pool = waterTiles.filter(
+          t => t.x >= bounds.minCol && t.x <= bounds.maxCol
+        );
+        if (pool.length === 0) continue;
+
+        const farTiles = pool.filter(t => {
+          const dx = t.x - playerTileX;
+          const dy = t.y - playerTileY;
+          return Math.sqrt(dx * dx + dy * dy) >= 10;
+        });
+        const candidates = farTiles.length > 0 ? farTiles : pool;
+        const spawnTile = Phaser.Utils.Array.GetRandom(candidates);
+        const fish = new Anglerfish(
+          this,
+          spawnTile.pixelX + this.map.tileWidth / 2,
+          spawnTile.pixelY + this.map.tileHeight / 2,
+          this.player,
+          this.levelDef.anglerfish.deactivateDistancePx
+        );
+        this.anglerfishList.push(fish);
+        if (fishLayer) this.physics.add.collider(fish, fishLayer);
+        this.physics.add.overlap(
+          this.player,
+          fish,
+          this.handleAnglerfishHit as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+          undefined,
+          this
+        );
+      }
+
+      this.events.on('anglerfishRipple', (x: number, y: number) => {
+        this.createRipple(x, y, WATER.RIPPLES.COLOR);
       });
-      const candidates = farTiles.length > 0 ? farTiles : pool;
-      const spawnTile = Phaser.Utils.Array.GetRandom(candidates);
-      const fish = new Anglerfish(
-        this,
-        spawnTile.pixelX + this.map.tileWidth / 2,
-        spawnTile.pixelY + this.map.tileHeight / 2,
-        this.player
-      );
-      this.anglerfishList.push(fish);
-      if (fishLayer) this.physics.add.collider(fish, fishLayer);
-      this.physics.add.overlap(
-        this.player,
-        fish,
-        this.handleAnglerfishHit as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
-        undefined,
-        this
-      );
-    };
-
-    spawnAnglerfish(waterTiles.filter(t => t.x <= ANGLERFISH.LEFT_SEA_MAX_COL));
-    spawnAnglerfish(waterTiles.filter(t => t.x >= ANGLERFISH.RIGHT_SEA_MIN_COL));
-
-    this.events.on('anglerfishRipple', (x: number, y: number) => {
-      this.createRipple(x, y, WATER.RIPPLES.COLOR);
-    });
+    }
 
     // Camera
     this.cameras.main.startFollow(this.player, true, CAMERA.LERP, CAMERA.LERP);
@@ -189,11 +246,14 @@ export class WorldScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard!.createCursorKeys();
 
-    // Exit portal
-    this.setupExitPortal();
+    // Portals
+    this.setupPortals();
 
     // Touch / pointer input
     this.setupPointerInput();
+
+    // Notify UI of initial state
+    this.events.emit('levelStarted', this.levelDef, this.score, this.lives);
   }
 
   // ---------------------------------------------------------------------------
@@ -206,7 +266,6 @@ export class WorldScene extends Phaser.Scene {
     this.physics.pause();
     this.playerPath = [];
     if (this.joystickActive) this.deactivateJoystick();
-    // Disable pointer input so taps don't move the player while modal is open
     this.input.enabled = false;
   }
 
@@ -241,9 +300,7 @@ export class WorldScene extends Phaser.Scene {
     this.events.emit('scoreChanged', this.score);
     this.events.emit('livesUpdated', this.lives, this.score);
 
-    if (!this.portalOpen && this.score >= EXIT.MONEY_REQUIRED) {
-      this.openPortal();
-    }
+    this.checkPortalUnlocks();
     return { ok: true };
   }
 
@@ -253,7 +310,6 @@ export class WorldScene extends Phaser.Scene {
     if (this.isGameOver || this.isShopOpen) return;
 
     if (this.player) {
-      // Determine override velocity from joystick or path
       let overrideVelocity: { x: number; y: number } | undefined;
 
       if (this.joystickActive) {
@@ -267,7 +323,6 @@ export class WorldScene extends Phaser.Scene {
 
       const keyboardUsed = this.player.update(this.cursors, overrideVelocity);
       if (keyboardUsed) {
-        // Keyboard cancels tap-to-move path
         this.playerPath = [];
       }
 
@@ -288,17 +343,12 @@ export class WorldScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------
 
   private setupPointerInput(): void {
-    // joystickRadius in canvas-pixel space (same units as ptr.x / ptr.y).
     const displayW = this.scale.displaySize.width;
     const canvasW = this.scale.width;
     this.joystickRadius = Math.round(
       TOUCH.JOYSTICK_TARGET_CSS_PX / (displayW / canvasW)
     );
 
-    // The joystick lives in world space (no setScrollFactor).
-    // camera.getWorldPoint() converts screen→world perfectly for the current
-    // camera state, so the ring always appears exactly where the finger lands.
-    // All drawn radii are in world units = canvas-pixel radius / zoom.
     const zoom = this.cameras.main.zoom;
     const outerR = this.joystickRadius / zoom;
     const innerR = (this.joystickRadius * TOUCH.JOYSTICK_KNOB_RATIO) / zoom;
@@ -342,7 +392,6 @@ export class WorldScene extends Phaser.Scene {
       if (this.joystickActive) {
         this.deactivateJoystick();
       } else {
-        // Clean tap → pathfind to world position
         const world = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
         this.startPlayerPath(world.x, world.y);
         this.showTapMarker(world.x, world.y);
@@ -355,14 +404,12 @@ export class WorldScene extends Phaser.Scene {
     this.joystickActive = true;
     this.playerPath = [];
 
-    // Place ring at the world position that corresponds to this screen point.
     const center = this.cameras.main.getWorldPoint(screenX, screenY);
     this.joystickOuter.setPosition(center.x, center.y).setVisible(true);
     this.joystickInner.setPosition(center.x, center.y).setVisible(true);
   }
 
   private updateJoystick(screenX: number, screenY: number): void {
-    // Delta from initial press in screen-pixel space.
     let dx = screenX - this.ptrDownX;
     let dy = screenY - this.ptrDownY;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -372,8 +419,6 @@ export class WorldScene extends Phaser.Scene {
     }
     this.joystickDelta = { x: dx, y: dy };
 
-    // Re-derive ring centre each call so it stays screen-fixed as the camera
-    // follows the player. Then offset knob by delta converted to world units.
     const cam = this.cameras.main;
     const center = cam.getWorldPoint(this.ptrDownX, this.ptrDownY);
     this.joystickOuter.setPosition(center.x, center.y);
@@ -391,7 +436,6 @@ export class WorldScene extends Phaser.Scene {
     if (!this.groundLayer) return;
 
     if (!this.playerWalkable) {
-      // Walkable for the player: any tile that exists and isn't a wall (tile 1)
       const grid: boolean[][] = [];
       for (let row = 0; row < this.map.height; row++) {
         const rowArr: boolean[] = [];
@@ -414,7 +458,6 @@ export class WorldScene extends Phaser.Scene {
       destTileX === null || destTileY === null
     ) return;
 
-    // If tapped on a wall, route to nearest walkable tile
     if (!this.playerWalkable[destTileY]?.[destTileX]) {
       const nearest = this.nearestWalkableTile(destTileX, destTileY, this.playerWalkable);
       if (!nearest) return;
@@ -433,7 +476,6 @@ export class WorldScene extends Phaser.Scene {
     const tileSize = this.map.tileWidth;
     const arrivalRadius = tileSize * 0.75;
 
-    // Advance past waypoints already within arrival radius
     while (
       this.playerPath.length > 0 &&
       Phaser.Math.Distance.Between(
@@ -447,7 +489,6 @@ export class WorldScene extends Phaser.Scene {
 
     if (this.playerPath.length === 0) return undefined;
 
-    // Lookahead steering: blend toward the next 1–2 waypoints
     let steerX = 0, steerY = 0, totalW = 0;
     const look = Math.min(2, this.playerPath.length);
     for (let i = 0; i < look; i++) {
@@ -566,7 +607,7 @@ export class WorldScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------
 
   private spawnLog(): void {
-    if (this.logs.countActive(true) >= LOGS.MAX_COUNT) return;
+    if (this.logs.countActive(true) >= this.levelDef.logs.maxCount) return;
 
     const waterTiles = this.getWaterTiles();
     if (waterTiles.length === 0) return;
@@ -577,7 +618,7 @@ export class WorldScene extends Phaser.Scene {
     const farTiles = waterTiles.filter(tile => {
       const dx = tile.x - (playerTileX ?? 0);
       const dy = tile.y - (playerTileY ?? 0);
-      return Math.sqrt(dx * dx + dy * dy) >= LOGS.MIN_SPAWN_DISTANCE_TILES;
+      return Math.sqrt(dx * dx + dy * dy) >= this.levelDef.logs.minSpawnDistanceTiles;
     });
 
     const available = farTiles.length > 0 ? farTiles : waterTiles;
@@ -611,16 +652,14 @@ export class WorldScene extends Phaser.Scene {
     logObj: Phaser.Types.Physics.Arcade.GameObjectWithBody
   ): void {
     const log = logObj as Log;
-    this.score += LOGS.POINTS_PER_LOG;
+    this.score += this.levelDef.logs.pointsPerLog;
     for (let i = 0; i < 3; i++) {
       this.time.delayedCall(i * 100, () => { this.createRipple(log.x, log.y); });
     }
     log.collect(this.player);
     this.events.emit('scoreChanged', this.score);
 
-    if (!this.portalOpen && this.score >= EXIT.MONEY_REQUIRED) {
-      this.openPortal();
-    }
+    this.checkPortalUnlocks();
   }
 
   // ---------------------------------------------------------------------------
@@ -654,88 +693,129 @@ export class WorldScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // Exit portal
+  // Portals
   // ---------------------------------------------------------------------------
 
-  private setupExitPortal(): void {
+  private setupPortals(): void {
     const tileSize = this.map.tileWidth;
-    const exitX = EXIT.TILE_COL * tileSize + tileSize / 2;
-    const exitY = EXIT.TILE_ROW * tileSize + tileSize / 2;
 
-    // Draw the closed portal
-    this.portalGfx = this.add.graphics();
-    this.portalGfx.setDepth(EXIT.DEPTH);
-    this.drawPortalClosed();
+    for (const portalDef of this.levelDef.portals) {
+      const cx = portalDef.col * tileSize + tileSize / 2;
+      const cy = portalDef.row * tileSize + tileSize / 2;
+      const isOpen = portalDef.moneyRequired <= 0 || this.score >= portalDef.moneyRequired;
 
-    // Price tag floating above the portal
-    this.portalPriceTag = this.add.text(exitX, exitY - tileSize * 0.9, `€${EXIT.MONEY_REQUIRED}`, {
-      fontSize: '5px',
-      color: '#88ccff',
-      stroke: '#000000',
-      strokeThickness: 1,
-    });
-    this.portalPriceTag.setOrigin(0.5, 1);
-    this.portalPriceTag.setDepth(EXIT.DEPTH + 1);
+      const gfx = this.add.graphics();
+      gfx.setDepth(DEPTHS.EFFECTS + 1);
 
-    // Zone for overlap detection (static physics body)
-    const zone = this.add.zone(exitX, exitY, tileSize, tileSize);
-    this.physics.add.existing(zone, true);
-    this.physics.add.overlap(
-      this.player,
-      zone,
-      () => { if (this.portalOpen) this.handleExitReached(); },
-      undefined,
-      this
-    );
+      // Price tag (hidden if already open or free)
+      const priceTag = this.add.text(
+        cx, cy - tileSize * 0.9,
+        portalDef.moneyRequired > 0 ? `€${portalDef.moneyRequired}` : portalDef.label,
+        {
+          fontSize: '5px',
+          color: '#88ccff',
+          stroke: '#000000',
+          strokeThickness: 1,
+        }
+      );
+      priceTag.setOrigin(0.5, 1);
+      priceTag.setDepth(DEPTHS.EFFECTS + 2);
+
+      // Overlap zone
+      const zone = this.add.zone(cx, cy, tileSize, tileSize);
+      this.physics.add.existing(zone, true);
+
+      const state: PortalState = {
+        def: portalDef,
+        open: false,
+        gfx,
+        pulseTween: null,
+        priceTag,
+        zone,
+      };
+
+      this.physics.add.overlap(
+        this.player,
+        zone,
+        () => { if (state.open) this.handlePortalReached(state); },
+        undefined,
+        this
+      );
+
+      this.portalStates.push(state);
+
+      if (isOpen) {
+        this.drawPortalOpen(state);
+      } else {
+        this.drawPortalClosed(state);
+      }
+    }
   }
 
-  private drawPortalClosed(): void {
+  private drawPortalClosed(state: PortalState): void {
     const tileSize = this.map.tileWidth;
-    const cx = EXIT.TILE_COL * tileSize + tileSize / 2;
-    const cy = EXIT.TILE_ROW * tileSize + tileSize / 2;
+    const cx = state.def.col * tileSize + tileSize / 2;
+    const cy = state.def.row * tileSize + tileSize / 2;
     const r = tileSize * 0.42;
 
-    this.portalGfx.clear();
-    this.portalGfx.fillStyle(EXIT.COLOR_CLOSED, 0.55);
-    this.portalGfx.fillCircle(cx, cy, r);
-    this.portalGfx.lineStyle(1, EXIT.COLOR_CLOSED, 0.9);
-    this.portalGfx.strokeCircle(cx, cy, r);
+    state.gfx.clear();
+    state.gfx.fillStyle(0x446688, 0.55);
+    state.gfx.fillCircle(cx, cy, r);
+    state.gfx.lineStyle(1, 0x446688, 0.9);
+    state.gfx.strokeCircle(cx, cy, r);
+
+    state.open = false;
+    state.priceTag.setVisible(true);
   }
 
-  private openPortal(): void {
-    this.portalOpen = true;
-    this.portalPriceTag.setVisible(false);
-
+  private drawPortalOpen(state: PortalState): void {
     const tileSize = this.map.tileWidth;
-    const cx = EXIT.TILE_COL * tileSize + tileSize / 2;
-    const cy = EXIT.TILE_ROW * tileSize + tileSize / 2;
+    const cx = state.def.col * tileSize + tileSize / 2;
+    const cy = state.def.row * tileSize + tileSize / 2;
     const r = tileSize * 0.42;
 
-    // Redraw as open portal
-    this.portalGfx.clear();
-    this.portalGfx.fillStyle(EXIT.COLOR_OPEN, 0.5);
-    this.portalGfx.fillCircle(cx, cy, r);
-    this.portalGfx.lineStyle(1.5, EXIT.COLOR_RING, 1);
-    this.portalGfx.strokeCircle(cx, cy, r + 1);
+    state.gfx.clear();
+    state.gfx.fillStyle(0x00ffff, 0.5);
+    state.gfx.fillCircle(cx, cy, r);
+    state.gfx.lineStyle(1.5, 0x8844ff, 1);
+    state.gfx.strokeCircle(cx, cy, r + 1);
 
-    // Pulsing scale tween
-    this.portalPulseTween = this.tweens.add({
-      targets: this.portalGfx,
-      scaleX: 1.25,
-      scaleY: 1.25,
-      alpha: 0.75,
-      duration: 700,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
+    state.open = true;
 
-    // Bubble text above the portal
-    this.showPortalBubble(cx, cy - tileSize * 1.5);
+    // Show label instead of price
+    state.priceTag.setText(state.def.label);
+    state.priceTag.setVisible(true);
+
+    if (!state.pulseTween) {
+      state.pulseTween = this.tweens.add({
+        targets: state.gfx,
+        scaleX: 1.25,
+        scaleY: 1.25,
+        alpha: 0.75,
+        duration: 700,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
   }
 
-  private showPortalBubble(x: number, y: number): void {
-    const text = this.add.text(x, y, 'The portal has opened!', {
+  private checkPortalUnlocks(): void {
+    for (const state of this.portalStates) {
+      if (state.open) continue;
+      if (state.def.moneyRequired > 0 && this.score >= state.def.moneyRequired) {
+        this.drawPortalOpen(state);
+        this.showPortalBubble(state);
+      }
+    }
+  }
+
+  private showPortalBubble(state: PortalState): void {
+    const tileSize = this.map.tileWidth;
+    const cx = state.def.col * tileSize + tileSize / 2;
+    const cy = state.def.row * tileSize + tileSize / 2;
+
+    const text = this.add.text(cx, cy - tileSize * 1.5, `Portal to ${state.def.label} opened!`, {
       fontSize: '6px',
       color: '#ffffff',
       stroke: '#000000',
@@ -748,7 +828,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: text,
-      y: y - 12,
+      y: cy - tileSize * 1.5 - 12,
       alpha: 0,
       duration: 2800,
       ease: 'Sine.easeOut',
@@ -756,15 +836,13 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
-  private handleExitReached(): void {
+  private handlePortalReached(state: PortalState): void {
     if (this.isGameOver) return;
-    this.isGameOver = true; // reuse flag to block re-entry
+    this.isGameOver = true; // block re-entry
     this.physics.pause();
 
-    // Stop portal pulse
-    this.portalPulseTween?.stop();
+    state.pulseTween?.stop();
 
-    // Player spin + scale up, then fade out
     this.tweens.add({
       targets: this.player,
       angle: 360,
@@ -774,7 +852,13 @@ export class WorldScene extends Phaser.Scene {
       duration: 900,
       ease: 'Cubic.easeIn',
       onComplete: () => {
-        this.events.emit('levelComplete', this.score);
+        const transition: LevelTransition = {
+          level: state.def.targetLevel,
+          score: this.score,
+          lives: this.lives,
+        };
+        this.events.emit('levelTransition', transition);
+        this.scene.start('WorldScene', transition);
       },
     });
   }

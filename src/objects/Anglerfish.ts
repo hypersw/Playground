@@ -21,11 +21,15 @@ export class Anglerfish extends Phaser.Physics.Arcade.Sprite {
   /** When true the AI does nothing (too far from player) */
   private sleeping: boolean = false;
 
+  /** Distance (px) beyond which the AI deactivates */
+  private deactivateDistancePx: number;
+
   constructor(
     scene: Phaser.Scene,
     x: number,
     y: number,
-    target: Phaser.GameObjects.Sprite
+    target: Phaser.GameObjects.Sprite,
+    deactivateDistancePx: number = 800,
   ) {
     super(scene, x, y, 'anglerfish', 0);
 
@@ -41,6 +45,7 @@ export class Anglerfish extends Phaser.Physics.Arcade.Sprite {
     body.setOffset(PLAYER.BODY.OFFSET_X, PLAYER.BODY.OFFSET_Y);
 
     this.target = target;
+    this.deactivateDistancePx = deactivateDistancePx;
     this.createAnimations();
   }
 
@@ -59,7 +64,7 @@ export class Anglerfish extends Phaser.Physics.Arcade.Sprite {
   public update(time: number, groundLayer: Phaser.Tilemaps.TilemapLayer | null): void {
     // Distance-based sleep
     const distToPlayer = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
-    if (distToPlayer > ANGLERFISH.DEACTIVATE_DISTANCE_PX) {
+    if (this.deactivateDistancePx > 0 && distToPlayer > this.deactivateDistancePx) {
       if (!this.sleeping) {
         this.sleeping = true;
         (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);

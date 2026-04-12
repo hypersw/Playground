@@ -1,12 +1,15 @@
 import Phaser from 'phaser';
 import { UI, DEPTHS, LIVES } from '../config/constants';
 import { WorldScene } from './WorldScene';
+import type { LevelDef } from '../config/levels';
 import { ShopModal } from '../ui/ShopModal';
 
 export class UIScene extends Phaser.Scene {
   private scoreText!: Phaser.GameObjects.Text;
   private heartTexts: Phaser.GameObjects.Text[] = [];
+  private levelNameText!: Phaser.GameObjects.Text;
   private shopModal!: ShopModal;
+  private shopBtn!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'UIScene' });
@@ -17,7 +20,7 @@ export class UIScene extends Phaser.Scene {
     const titleText = this.add.text(
       UI.TEXT.TITLE.x,
       UI.TEXT.TITLE.y,
-      '🦫 Beaver World - CC0 Demo',
+      '🦫 Beaver World',
       {
         fontSize: UI.TEXT.TITLE.fontSize,
         color: UI.TEXT.TITLE.color,
@@ -89,9 +92,29 @@ export class UIScene extends Phaser.Scene {
     }
 
     // -------------------------------------------------------------------------
+    // Level name (shown briefly on level entry)
+    // -------------------------------------------------------------------------
+    this.levelNameText = this.add.text(
+      this.scale.width / 2,
+      this.scale.height / 2 - 60,
+      '',
+      {
+        fontSize: '48px',
+        color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 6,
+        fontStyle: 'bold',
+      }
+    );
+    this.levelNameText.setOrigin(0.5);
+    this.levelNameText.setScrollFactor(0);
+    this.levelNameText.setDepth(DEPTHS.UI);
+    this.levelNameText.setAlpha(0);
+
+    // -------------------------------------------------------------------------
     // Shop button
     // -------------------------------------------------------------------------
-    const shopBtn = this.add.text(
+    this.shopBtn = this.add.text(
       UI.TEXT.SHOP_BUTTON.x,
       UI.TEXT.SHOP_BUTTON.y,
       '🛒 Shop',
@@ -102,14 +125,70 @@ export class UIScene extends Phaser.Scene {
         strokeThickness: UI.TEXT.SHOP_BUTTON.strokeThickness,
       }
     );
-    shopBtn.setScrollFactor(0);
-    shopBtn.setDepth(DEPTHS.UI);
-    shopBtn.setInteractive({ useHandCursor: true });
+    this.shopBtn.setScrollFactor(0);
+    this.shopBtn.setDepth(DEPTHS.UI);
+    this.shopBtn.setInteractive({ useHandCursor: true });
 
     // -------------------------------------------------------------------------
-    // WorldScene event listeners
+    // Shop modal
     // -------------------------------------------------------------------------
+    this.shopModal = new ShopModal(
+      (qty) => {
+        const ws = this.scene.get('WorldScene') as WorldScene;
+        return ws.buyHearts(qty);
+      },
+      (qty) => {
+        const ws = this.scene.get('WorldScene') as WorldScene;
+        return ws.sellHearts(qty);
+      },
+      () => {
+        this.shopModal.hide();
+        const ws = this.scene.get('WorldScene') as WorldScene;
+        ws.closeShop();
+      },
+    );
+
+    this.shopBtn.on('pointerdown', () => {
+      const ws = this.scene.get('WorldScene') as WorldScene;
+      if (ws.isGameOver) return;
+      ws.openShop();
+      this.shopModal.show(ws.score, ws.lives);
+    });
+
+    // -------------------------------------------------------------------------
+    // Bind to WorldScene events
+    // -------------------------------------------------------------------------
+    this.bindWorldEvents();
+  }
+
+  /** (Re-)bind event listeners to the current WorldScene instance */
+  private bindWorldEvents(): void {
     const worldScene = this.scene.get('WorldScene') as WorldScene;
+
+    worldScene.events.on('levelStarted', (levelDef: LevelDef, score: number, lives: number) => {
+      this.scoreText.setText(`€${score}`);
+      this.syncHearts(lives);
+      this.showLevelName(levelDef.name);
+      // Re-bind for the fresh scene instance
+      this.rebindAfterRestart();
+    });
+
+    this.bindSceneEvents(worldScene);
+  }
+
+  /** Re-subscribe to a restarted WorldScene */
+  private rebindAfterRestart(): void {
+    const worldScene = this.scene.get('WorldScene') as WorldScene;
+    this.bindSceneEvents(worldScene);
+  }
+
+  private bindSceneEvents(worldScene: WorldScene): void {
+    // Remove previous listeners to avoid duplicates after restart
+    worldScene.events.off('scoreChanged');
+    worldScene.events.off('livesChanged');
+    worldScene.events.off('livesUpdated');
+    worldScene.events.off('gameOver');
+    worldScene.events.off('levelTransition');
 
     worldScene.events.on('scoreChanged', (score: number) => {
       this.scoreText.setText(`€${score}`);
@@ -119,7 +198,6 @@ export class UIScene extends Phaser.Scene {
       this.onLifeLost(lives, worldX, worldY);
     });
 
-    // livesUpdated = shop purchase/sale (no fly animation, just re-sync display)
     worldScene.events.on('livesUpdated', (lives: number, score: number) => {
       this.syncHearts(lives);
       this.scoreText.setText(`€${score}`);
@@ -130,26 +208,26 @@ export class UIScene extends Phaser.Scene {
       this.startBloodTransition();
     });
 
-    worldScene.events.on('levelComplete', (score: number) => {
-      this.showLevelComplete(score);
+    worldScene.events.on('levelTransition', () => {
+      // Close shop if open during transition
+      this.shopModal.hide();
     });
+  }
 
-    // -------------------------------------------------------------------------
-    // Shop modal
-    // -------------------------------------------------------------------------
-    this.shopModal = new ShopModal(
-      (qty) => worldScene.buyHearts(qty),
-      (qty) => worldScene.sellHearts(qty),
-      () => {
-        this.shopModal.hide();
-        worldScene.closeShop();
-      },
-    );
+  // ---------------------------------------------------------------------------
+  // Level name display
+  // ---------------------------------------------------------------------------
 
-    shopBtn.on('pointerdown', () => {
-      if (worldScene.isGameOver) return;
-      worldScene.openShop();
-      this.shopModal.show(worldScene.score, worldScene.lives);
+  private showLevelName(name: string): void {
+    this.levelNameText.setText(name);
+    this.levelNameText.setAlpha(0);
+    this.tweens.add({
+      targets: this.levelNameText,
+      alpha: 1,
+      duration: 400,
+      ease: 'Sine.easeIn',
+      yoyo: true,
+      hold: 1200,
     });
   }
 
@@ -157,7 +235,6 @@ export class UIScene extends Phaser.Scene {
   // Hearts helpers
   // ---------------------------------------------------------------------------
 
-  /** Set heart visibility to match the given lives count (no animation). */
   private syncHearts(lives: number): void {
     for (let i = 0; i < this.heartTexts.length; i++) {
       this.heartTexts[i].setVisible(i < lives);
@@ -169,7 +246,6 @@ export class UIScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------
 
   private onLifeLost(lives: number, playerWorldX: number, playerWorldY: number): void {
-    // Index of the heart to animate out (lives already decremented, e.g. 3→2: index 2)
     const heartIndex = lives;
     if (heartIndex < 0 || heartIndex >= this.heartTexts.length) return;
 
@@ -187,9 +263,6 @@ export class UIScene extends Phaser.Scene {
     const worldScene = this.scene.get('WorldScene') as WorldScene;
     const cam = worldScene.cameras.main;
 
-    // Single tween on a plain state object drives everything each frame.
-    // cam.worldView gives the visible world rectangle (accounts for zoom),
-    // so we can map world→canvas coords without touching cam.zoom directly.
     const state = { t: 0 };
     this.tweens.add({
       targets: state,
@@ -197,11 +270,9 @@ export class UIScene extends Phaser.Scene {
       duration: LIVES.ANIMATION_DURATION,
       ease: 'Sine.easeInOut',
       onUpdate: () => {
-        // Track player's latest world position
         const wx = worldScene.player?.x ?? playerWorldX;
         const wy = worldScene.player?.y ?? playerWorldY;
 
-        // Map world position to UIScene canvas coordinates via worldView
         const wv = cam.worldView;
         const destX = ((wx - wv.x) / wv.width) * this.scale.width;
         const destY = ((wy - wv.y) / wv.height) * this.scale.height;
@@ -210,7 +281,6 @@ export class UIScene extends Phaser.Scene {
         clone.x = Phaser.Math.Linear(startX, destX, t);
         clone.y = Phaser.Math.Linear(startY, destY, t);
 
-        // Scale: ease from 2× down to 1× over the first half of the flight
         const scale = t < 0.5 ? Phaser.Math.Linear(2, 1, t * 2) : 1;
         clone.setScale(scale);
       },
@@ -229,25 +299,21 @@ export class UIScene extends Phaser.Scene {
     const H = this.scale.height;
     const NUM_COLS = 42;
     const colW = W / NUM_COLS;
-    const tipR = colW * 0.52; // drip-tip circle radius slightly wider than column
+    const tipR = colW * 0.52;
 
     const gfx = this.add.graphics();
     gfx.setDepth(DEPTHS.UI + 10);
 
-    // Per-column state
     interface Col { h: number; speed: number; delay: number }
     const cols: Col[] = Array.from({ length: NUM_COLS }, () => ({
       h: 0,
-      speed: Phaser.Math.Between(10, 28),   // canvas px per frame
-      delay: Phaser.Math.Between(0, 22),    // frames before this column starts
+      speed: Phaser.Math.Between(10, 28),
+      delay: Phaser.Math.Between(0, 22),
     }));
 
-    // Slight per-column colour variation for organic look
     const colColours = cols.map(() => {
       const r = Phaser.Math.Between(130, 180);
-      const g = 0;
-      const b = 0;
-      return (r << 16) | (g << 8) | b;
+      return (r << 16) | 0;
     });
 
     const onUpdate = () => {
@@ -270,13 +336,11 @@ export class UIScene extends Phaser.Scene {
         }
 
         const x = i * colW;
-        const bodyH = Math.min(col.h, H); // rectangle never exceeds canvas
+        const bodyH = Math.min(col.h, H);
 
-        // Main blood column — dark red
         gfx.fillStyle(colColours[i], 1);
         gfx.fillRect(x, 0, colW, bodyH);
 
-        // Drip tip — brighter blob hanging below the column front
         if (col.h < H + tipR) {
           gfx.fillStyle(0xdd1111, 1);
           gfx.fillCircle(x + colW / 2, col.h, tipR);
@@ -290,36 +354,6 @@ export class UIScene extends Phaser.Scene {
     };
 
     this.events.on('update', onUpdate);
-  }
-
-  private showLevelComplete(score: number): void {
-    const cx = this.scale.width / 2;
-    const cy = this.scale.height / 2;
-
-    // Dark overlay
-    const overlay = this.add.rectangle(cx, cy, this.scale.width, this.scale.height, 0x000022, 0);
-    overlay.setDepth(DEPTHS.UI + 10);
-    this.tweens.add({ targets: overlay, fillAlpha: 0.75, duration: 600, ease: 'Sine.easeIn' });
-
-    const title = this.add.text(cx, cy - 80, 'LEVEL COMPLETE', {
-      fontSize: '96px',
-      color: '#00ffcc',
-      stroke: '#003322',
-      strokeThickness: 8,
-      fontStyle: 'bold',
-    });
-    title.setOrigin(0.5).setDepth(DEPTHS.UI + 11).setAlpha(0);
-
-    const sub = this.add.text(cx, cy + 30, `Score: €${score}`, {
-      fontSize: '48px',
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 4,
-    });
-    sub.setOrigin(0.5).setDepth(DEPTHS.UI + 11).setAlpha(0);
-
-    this.tweens.add({ targets: title, alpha: 1, y: cy - 60, duration: 900, ease: 'Back.easeOut', delay: 300 });
-    this.tweens.add({ targets: sub,   alpha: 1,             duration: 700, ease: 'Sine.easeIn',  delay: 800 });
   }
 
   private showYouDied(): void {

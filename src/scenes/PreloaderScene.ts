@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { LEVELS } from '../config/levels';
 
 export class PreloaderScene extends Phaser.Scene {
   constructor() {
@@ -46,8 +47,10 @@ export class PreloaderScene extends Phaser.Scene {
     // Tileset image
     this.load.image('tileset', 'assets/tilesets/tileset.png');
 
-    // Tilemap JSON (exported from Tiled)
-    this.load.tilemapTiledJSON('world-map', 'assets/maps/world-map.json');
+    // Load all level tilemaps
+    for (const [, levelDef] of LEVELS) {
+      this.load.tilemapTiledJSON(levelDef.mapKey, `assets/maps/${levelDef.mapKey}.json`);
+    }
 
     // Player spritesheet - Placeholder (simple colored squares)
     this.load.spritesheet('player', 'assets/sprites/player.png', {
@@ -56,21 +59,18 @@ export class PreloaderScene extends Phaser.Scene {
     });
 
     // Beaver sprite (CC BY-SA by bleutailfly)
-    // 3 frames per direction, 4 directions (South, West, East, North)
     this.load.spritesheet('beaver', 'assets/sprites/beaver.png', {
       frameWidth: 32,
       frameHeight: 32,
     });
 
     // Log sprite (CC BY-SA by Redfill Production)
-    // 2 frames: frame 0 = side view, frame 1 = top view
     this.load.spritesheet('log', 'assets/sprites/log.png', {
       frameWidth: 16,
       frameHeight: 16,
     });
 
     // Anglerfish sprite (CC BY-SA 4.0 by pixel_emm)
-    // 2 frames for swimming animation
     this.load.spritesheet('anglerfish', 'assets/sprites/anglerfish.png', {
       frameWidth: 48,
       frameHeight: 48,
@@ -80,6 +80,6 @@ export class PreloaderScene extends Phaser.Scene {
   create(): void {
     // Once assets are loaded, start the main world scene
     this.scene.start('WorldScene');
-    this.scene.launch('UIScene'); // Run UI scene in parallel
+    this.scene.launch('UIScene');
   }
 }

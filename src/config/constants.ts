@@ -28,19 +28,6 @@ export const PLAYER = {
     OFFSET_Y: 16,
   },
 
-  /**
-   * Spawn region: top-right island of the original map section.
-   * In the 100×20 merged map, the original 20-tile section sits at cols 80–99.
-   * The top-right grass cluster (original cols 15–18) = new cols 95–98,
-   * separated from the main water by walls at cols 93–94.
-   * Tile coords (inclusive).
-   */
-  SPAWN_REGION: {
-    MIN_COL: 95,
-    MAX_COL: 98,
-    MIN_ROW: 1,
-    MAX_ROW: 7,
-  },
 } as const;
 
 // =============================================================================
@@ -99,20 +86,6 @@ export const ANGLERFISH = {
   /** Hit cooldown - time beaver's ripples stay red (milliseconds) */
   HIT_DURATION: 3000,
 
-  /**
-   * Tile column boundaries for the two separate water bodies.
-   * Left sea: cols 0 – LEFT_SEA_MAX_COL (inclusive)
-   * Right sea: cols RIGHT_SEA_MIN_COL – map end (inclusive)
-   */
-  LEFT_SEA_MAX_COL: 27,
-  RIGHT_SEA_MIN_COL: 65,
-
-  /**
-   * Distance (in pixels) beyond which an anglerfish AI is deactivated.
-   * 2 screens × (canvas width / zoom).
-   */
-  DEACTIVATE_DISTANCE_PX: 800,
-
   /** Ripple configuration */
   RIPPLES: {
     /** Color of anglerfish ripples (red) */
@@ -128,33 +101,12 @@ export const ANGLERFISH = {
 // =============================================================================
 
 // =============================================================================
-// EXIT PORTAL
+// EXIT PORTAL (visual constants — positions are per-level in levels/)
 // =============================================================================
 
 export const EXIT = {
   /** Tile index used to mark the exit on the Ground layer */
   TILE_INDEX: 3,
-
-  /** Tile column of the exit (bottom-left water area) */
-  TILE_COL: 3,
-
-  /** Tile row of the exit */
-  TILE_ROW: 18,
-
-  /** EUR the player must accumulate before the portal opens */
-  MONEY_REQUIRED: 150,
-
-  /** Depth for portal graphics (above ground, below player) */
-  DEPTH: 6,
-
-  /** Closed-portal colour */
-  COLOR_CLOSED: 0x446688,
-
-  /** Open-portal inner glow colour */
-  COLOR_OPEN: 0x00ffff,
-
-  /** Open-portal outer ring colour */
-  COLOR_RING: 0x8844ff,
 } as const;
 
 // =============================================================================
