@@ -13,10 +13,12 @@ export interface DebugCallbacks {
   getLives: () => number;
   getCurrentLevel: () => number;
   getNoclip: () => boolean;
+  getDebugDraw: () => boolean;
   setScore: (value: number) => void;
   setLives: (value: number) => void;
   goToLevel: (id: number) => void;
-  toggleNoclip: () => boolean;  // returns new state
+  toggleNoclip: () => boolean;
+  toggleDebugDraw: () => boolean;
 }
 
 export class DebugPanel {
@@ -27,6 +29,7 @@ export class DebugPanel {
   private livesEl!: HTMLSpanElement;
   private levelEl!: HTMLSpanElement;
   private noclipEl!: HTMLSpanElement;
+  private debugDrawEl!: HTMLSpanElement;
   private msgEl!: HTMLParagraphElement;
 
   constructor(private readonly cb: DebugCallbacks) {
@@ -61,6 +64,8 @@ export class DebugPanel {
     this.levelEl.textContent = `#${lvl} — ${def?.name ?? '???'}`;
     this.noclipEl.textContent = this.cb.getNoclip() ? 'ON' : 'OFF';
     this.noclipEl.style.color = this.cb.getNoclip() ? '#88ff88' : '#ff8888';
+    this.debugDrawEl.textContent = this.cb.getDebugDraw() ? 'ON' : 'OFF';
+    this.debugDrawEl.style.color = this.cb.getDebugDraw() ? '#88ff88' : '#ff8888';
   }
 
   destroy(): void {
@@ -116,9 +121,9 @@ export class DebugPanel {
     dialog.appendChild(this.makeSectionTitle('Lives'));
     dialog.appendChild(this.makeLivesSection());
 
-    // Noclip
+    // Cheats
     dialog.appendChild(this.makeSectionTitle('Cheats'));
-    dialog.appendChild(this.makeNoclipSection());
+    dialog.appendChild(this.makeCheatsSection());
 
     // Message area
     this.msgEl = document.createElement('p');
@@ -193,11 +198,13 @@ export class DebugPanel {
     this.scoreEl = document.createElement('span');
     this.livesEl = document.createElement('span');
     this.noclipEl = document.createElement('span');
+    this.debugDrawEl = document.createElement('span');
 
     status.appendChild(this.makeLabel('Level:', this.levelEl));
     status.appendChild(this.makeLabel('Score:', this.scoreEl));
     status.appendChild(this.makeLabel('Lives:', this.livesEl));
     status.appendChild(this.makeLabel('Noclip:', this.noclipEl));
+    status.appendChild(this.makeLabel('Hitboxes:', this.debugDrawEl));
 
     return status;
   }
@@ -283,13 +290,19 @@ export class DebugPanel {
     return row;
   }
 
-  private makeNoclipSection(): HTMLDivElement {
+  private makeCheatsSection(): HTMLDivElement {
     const row = this.makeRow();
 
     row.appendChild(this.makeBtn('Toggle Noclip', () => {
       const state = this.cb.toggleNoclip();
       this.refresh();
       this.flash(state ? 'Noclip ON — walk through walls' : 'Noclip OFF');
+    }));
+
+    row.appendChild(this.makeBtn('Toggle Hitboxes', () => {
+      const state = this.cb.toggleDebugDraw();
+      this.refresh();
+      this.flash(state ? 'Hitboxes ON' : 'Hitboxes OFF');
     }));
 
     return row;

@@ -165,10 +165,12 @@ export class UIScene extends Phaser.Scene {
       getLives: () => (this.scene.get('WorldScene') as WorldScene).lives,
       getCurrentLevel: () => (this.scene.get('WorldScene') as WorldScene).currentLevel,
       getNoclip: () => (this.scene.get('WorldScene') as WorldScene).noclip,
+      getDebugDraw: () => (this.scene.get('WorldScene') as WorldScene).debugDraw,
       setScore: (v) => (this.scene.get('WorldScene') as WorldScene).setScore(v),
       setLives: (v) => (this.scene.get('WorldScene') as WorldScene).setLives(v),
       goToLevel: (id) => (this.scene.get('WorldScene') as WorldScene).goToLevel(id),
       toggleNoclip: () => (this.scene.get('WorldScene') as WorldScene).toggleNoclip(),
+      toggleDebugDraw: () => (this.scene.get('WorldScene') as WorldScene).toggleDebugDraw(),
     });
 
     // ~ key toggles debug panel (listen on window to avoid Phaser key conflicts)

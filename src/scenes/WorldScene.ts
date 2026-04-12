@@ -52,6 +52,10 @@ export class WorldScene extends Phaser.Scene {
   public noclip: boolean = false;
   private wallCollider: Phaser.Physics.Arcade.Collider | null = null;
 
+  // Debug visualization
+  public debugDraw: boolean = false;
+  private debugGfx: Phaser.GameObjects.Graphics | null = null;
+
   // Level transition: which level the player arrived from
   private arrivedFromLevel: number | undefined = undefined;
   // Portal the player spawned on — stays "closed" until they walk away
@@ -115,6 +119,8 @@ export class WorldScene extends Phaser.Scene {
     this.isGameOver = false;
     this.isShopOpen = false;
     this.noclip = false;
+    this.debugDraw = false;
+    this.debugGfx = null;
     this.wallCollider = null;
     this.playerWalkable = null;
     this.playerPath = [];
@@ -308,6 +314,10 @@ export class WorldScene extends Phaser.Scene {
     // Touch / pointer input
     this.setupPointerInput();
 
+    // Debug overlay graphics (always created, only drawn when debugDraw is on)
+    this.debugGfx = this.add.graphics();
+    this.debugGfx.setDepth(DEPTHS.UI + 50);
+
     // Notify UI of initial state
     this.events.emit('levelStarted', this.levelDef, this.score, this.lives);
   }
@@ -343,6 +353,51 @@ export class WorldScene extends Phaser.Scene {
       lives: this.lives,
     };
     this.scene.start('WorldScene', transition);
+  }
+
+  toggleDebugDraw(): boolean {
+    this.debugDraw = !this.debugDraw;
+    if (!this.debugDraw && this.debugGfx) {
+      this.debugGfx.clear();
+    }
+    return this.debugDraw;
+  }
+
+  private drawDebugOverlay(): void {
+    if (!this.debugGfx) return;
+    this.debugGfx.clear();
+    if (!this.debugDraw) return;
+
+    // Helper: draw physics body rect + position dot for an arcade sprite
+    const drawActor = (
+      sprite: Phaser.Physics.Arcade.Sprite,
+      bodyColor: number,
+      posColor: number
+    ) => {
+      const body = sprite.body as Phaser.Physics.Arcade.Body;
+      if (!body) return;
+
+      // Physics body rectangle (world-space)
+      this.debugGfx!.lineStyle(0.5, bodyColor, 0.9);
+      this.debugGfx!.strokeRect(body.x, body.y, body.width, body.height);
+
+      // True position point (sprite.x, sprite.y)
+      this.debugGfx!.fillStyle(posColor, 1);
+      this.debugGfx!.fillCircle(sprite.x, sprite.y, 1);
+
+      // Crosshair at position
+      this.debugGfx!.lineStyle(0.3, posColor, 0.7);
+      this.debugGfx!.lineBetween(sprite.x - 3, sprite.y, sprite.x + 3, sprite.y);
+      this.debugGfx!.lineBetween(sprite.x, sprite.y - 3, sprite.x, sprite.y + 3);
+    };
+
+    // Player: green body, white position
+    drawActor(this.player, 0x00ff00, 0xffffff);
+
+    // Anglerfish: red body, yellow position
+    for (const fish of this.anglerfishList) {
+      drawActor(fish, 0xff0000, 0xffff00);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -439,6 +494,8 @@ export class WorldScene extends Phaser.Scene {
     for (const fish of this.anglerfishList) {
       fish.update(time, this.groundLayer);
     }
+
+    this.drawDebugOverlay();
   }
 
   // ---------------------------------------------------------------------------

@@ -19,13 +19,18 @@ export const PLAYER = {
   /** Starting Y position (pixels) — used as fallback if no valid spawn tile found */
   START_Y: 160,
 
+  /** Sprite origin — shifted down from center so rotation/scale centers on
+   *  the visual center of mass (the side-facing beaver sits lower in frame) */
+  ORIGIN_X: 0.5,
+  ORIGIN_Y: 0.58,
+
   /** Physics body size. Must fit within a single tile (16px) for maze navigation */
   BODY: {
     WIDTH: 10,
     HEIGHT: 10,
-    /** Offset from sprite origin (32×32 sprite, centered horizontally, at feet) */
+    /** Offset from sprite origin (32×32 sprite, origin at 0.5/0.58) */
     OFFSET_X: 11,
-    OFFSET_Y: 16,
+    OFFSET_Y: 13,
   },
 
 } as const;
