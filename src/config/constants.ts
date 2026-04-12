@@ -287,9 +287,11 @@ export const UI = {
 // =============================================================================
 
 export const CAMERA = {
-  /** How many world pixels are visible vertically regardless of screen size.
-   *  240 = 15 tiles of 16px. Zoom is computed as canvasHeight / VISIBLE_HEIGHT. */
-  VISIBLE_WORLD_HEIGHT: 240,
+  /** Minimum visible world area. Zoom = min(height/H, width/W) so both
+   *  dimensions are guaranteed. Landscape sees extra width, portrait sees
+   *  extra height — no black bars either way. */
+  VISIBLE_WORLD_HEIGHT: 240,  // 15 tiles of 16px
+  VISIBLE_WORLD_WIDTH: 320,   // 20 tiles of 16px
 
   /** Camera follow smoothness (0-1, lower = smoother) */
   LERP: 0.1,

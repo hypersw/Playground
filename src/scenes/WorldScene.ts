@@ -398,8 +398,10 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private updateCameraZoom(): void {
-    const zoom = this.scale.height / CAMERA.VISIBLE_WORLD_HEIGHT;
-    this.cameras.main.setZoom(zoom);
+    // Pick the smaller zoom so we guarantee a minimum visible area in both dimensions
+    const zoomH = this.scale.height / CAMERA.VISIBLE_WORLD_HEIGHT;
+    const zoomW = this.scale.width / CAMERA.VISIBLE_WORLD_WIDTH;
+    this.cameras.main.setZoom(Math.min(zoomH, zoomW));
   }
 
   toggleDebugDraw(): boolean {
