@@ -544,10 +544,13 @@ export class WorldScene extends Phaser.Scene {
       fish.update(time, this.groundLayer);
     }
 
+    // Prune destroyed mice from the array
+    this.mice = this.mice.filter(m => m.active);
+
     // Mice flee from player + cats
     const threats: Phaser.GameObjects.Sprite[] = [this.player, ...this.cats];
     for (const mouse of this.mice) {
-      if (mouse.active) mouse.flee(threats);
+      mouse.flee(threats);
     }
 
     // Cats update AI
