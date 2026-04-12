@@ -342,6 +342,7 @@ export class WorldScene extends Phaser.Scene {
 
     // Camera — zoom computed from canvas height so visible tile count is constant
     this.cameras.main.startFollow(this.player, true, CAMERA.LERP, CAMERA.LERP);
+    this.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
     this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
     this.updateCameraZoom();
 
