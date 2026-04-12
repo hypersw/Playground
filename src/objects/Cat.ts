@@ -138,27 +138,33 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
-    // Pick target: nearest non-blacklisted mouse in range, else player
-    // Penalize mice that another cat is already chasing (anti-herd)
+    // Priority: if player is close (within aggro range), chase them
+    const playerDist = Phaser.Math.Distance.Between(this.x, this.y, this.player.x, this.player.y);
+    const aggroRange = this.sightRange * 0.6;
+
     this.target = null;
-    const mice = this.getMice();
-    let bestScore = Infinity;
 
-    for (const m of mice) {
-      if (!m.active || this.blacklist.has(m)) continue;
-      let d = Phaser.Math.Distance.Between(this.x, this.y, m.x, m.y);
-      if (d >= this.sightRange) continue;
-      // If another cat is chasing this mouse, penalize by 2× distance
-      if (otherCatTargets.has(m)) d *= 2;
-      if (d < bestScore) {
-        bestScore = d;
-        this.target = m;
+    if (playerDist < aggroRange) {
+      this.target = this.player;
+    } else {
+      // Otherwise pick nearest non-blacklisted mouse in range
+      // Penalize mice that another cat is already chasing (anti-herd)
+      const mice = this.getMice();
+      let bestScore = Infinity;
+
+      for (const m of mice) {
+        if (!m.active || this.blacklist.has(m)) continue;
+        let d = Phaser.Math.Distance.Between(this.x, this.y, m.x, m.y);
+        if (d >= this.sightRange) continue;
+        if (otherCatTargets.has(m)) d *= 2;
+        if (d < bestScore) {
+          bestScore = d;
+          this.target = m;
+        }
       }
-    }
 
-    if (!this.target) {
-      const dp = Phaser.Math.Distance.Between(this.x, this.y, this.player.x, this.player.y);
-      if (dp < this.sightRange) {
+      // No mouse in range — chase player if within sight range
+      if (!this.target && playerDist < this.sightRange) {
         this.target = this.player;
       }
     }

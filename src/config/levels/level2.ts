@@ -55,7 +55,7 @@ const level2: LevelDef = {
     spawnInterval: 2000,
     pointsPerMouse: 5,
     fleeSpeed: 120,
-    fleeRadius: 80,
+    fleeRadius: 100,
   },
 
   cats: {
