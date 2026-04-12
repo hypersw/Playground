@@ -151,6 +151,8 @@ export class Mouse extends Phaser.Physics.Arcade.Sprite {
 
   /** Called when collected by the player or eaten by a cat */
   collect(): void {
+    if (!this.active) return;  // already collected
+    this.active = false;
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setEnable(false);
     this.scene.tweens.killTweensOf(this);
