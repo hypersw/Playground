@@ -3,16 +3,25 @@ import Phaser from 'phaser';
 /**
  * Mouse — collectible critter that spawns on grass.
  *
- * Runs away from the nearest threat (player or cat).
- * Collected by the player on overlap for money.
+ * Wanders randomly when safe. Flees from nearest threat (player/cat)
+ * when one gets close. Collected by the player on overlap for money.
  *
  * Sprite frames are 36×36 (padded so the body torso center is at frame center).
  */
 export class Mouse extends Phaser.Physics.Arcade.Sprite {
   private static readonly BODY_SIZE = 8;
   private fleeSpeed: number;
+  private wanderSpeed: number;
   private fleeRadius: number;
   private lastDirection: string = 'down';
+
+  // Wander state machine
+  private wanderVx: number = 0;
+  private wanderVy: number = 0;
+  /** Time (ms) when current wander leg or pause ends */
+  private wanderUntil: number = 0;
+  /** true = moving, false = pausing */
+  private wanderMoving: boolean = false;
 
   constructor(scene: Phaser.Scene, x: number, y: number, speed: number = 120, fleeRadius: number = 80) {
     super(scene, x, y, 'mouse', 1);
@@ -21,17 +30,20 @@ export class Mouse extends Phaser.Physics.Arcade.Sprite {
     scene.physics.add.existing(this);
 
     this.fleeSpeed = speed;
+    this.wanderSpeed = speed * 0.4;
     this.fleeRadius = fleeRadius;
 
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setCollideWorldBounds(true);
-    // Body centered on the frame center (body center is pre-aligned in the sprite)
     const half = Mouse.BODY_SIZE / 2;
     body.setSize(Mouse.BODY_SIZE, Mouse.BODY_SIZE);
     body.setOffset(this.width * 0.5 - half, this.height * 0.5 - half);
 
     this.setDepth(8);
     this.createAnimations();
+
+    // Start with a random wander leg so mice don't all sit still at spawn
+    this.pickWanderLeg();
   }
 
   private createAnimations(): void {
@@ -50,12 +62,14 @@ export class Mouse extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
-   * Flee from threats. Call each frame from WorldScene.update().
+   * Called each frame from WorldScene.update().
    * @param threats Array of game objects (player + cats) to flee from.
    */
   flee(threats: Phaser.GameObjects.Sprite[]): void {
     const body = this.body as Phaser.Physics.Arcade.Body;
+    const now = this.scene.time.now;
 
+    // Find nearest threat within flee radius
     let nearestDist = Infinity;
     let fleeFromX = 0;
     let fleeFromY = 0;
@@ -73,6 +87,7 @@ export class Mouse extends Phaser.Physics.Arcade.Sprite {
     }
 
     if (hasThreat) {
+      // Flee: run away from threat at full speed
       const dx = this.x - fleeFromX;
       const dy = this.y - fleeFromY;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -82,11 +97,47 @@ export class Mouse extends Phaser.Physics.Arcade.Sprite {
           (dy / dist) * this.fleeSpeed
         );
       }
+      // Reset wander so the mouse picks a new direction after fleeing ends
+      this.wanderUntil = 0;
     } else {
-      body.setVelocity(0, 0);
+      // Wander: alternate between walking in a random direction and pausing
+      if (now >= this.wanderUntil) {
+        if (this.wanderMoving) {
+          this.pickWanderPause();
+        } else {
+          this.pickWanderLeg();
+        }
+      }
+
+      if (this.wanderMoving) {
+        body.setVelocity(this.wanderVx, this.wanderVy);
+      } else {
+        body.setVelocity(0, 0);
+      }
     }
 
-    // Animation
+    this.updateAnimation(body);
+  }
+
+  private pickWanderLeg(): void {
+    // Random direction
+    const angle = Math.random() * Math.PI * 2;
+    this.wanderVx = Math.cos(angle) * this.wanderSpeed;
+    this.wanderVy = Math.sin(angle) * this.wanderSpeed;
+    this.wanderMoving = true;
+    // Walk for 0.5–2 seconds
+    this.wanderUntil = this.scene.time.now + 500 + Math.random() * 1500;
+  }
+
+  private pickWanderPause(): void {
+    this.wanderVx = 0;
+    this.wanderVy = 0;
+    this.wanderMoving = false;
+    // Pause for 0.3–1.2 seconds
+    this.wanderUntil = this.scene.time.now + 300 + Math.random() * 900;
+  }
+
+  private updateAnimation(body: Phaser.Physics.Arcade.Body): void {
     if (body.velocity.x < 0) {
       this.anims.play('mouse-walk-left', true);
       this.lastDirection = 'left';
@@ -104,7 +155,7 @@ export class Mouse extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  /** Called when collected by the player */
+  /** Called when collected by the player or eaten by a cat */
   collect(): void {
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setEnable(false);

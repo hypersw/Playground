@@ -33,6 +33,8 @@ export class WorldScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private map!: Phaser.Tilemaps.Tilemap;
   private groundLayer!: Phaser.Tilemaps.TilemapLayer | null;
+  /** Collision layer for grass-only entities (mice/cats): blocks walls + water */
+  private grassCollisionLayer: Phaser.Tilemaps.TilemapLayer | null = null;
   private lastRippleTime: number = 0;
   private logs!: Phaser.Physics.Arcade.Group;
   private mice: Mouse[] = [];
@@ -128,6 +130,7 @@ export class WorldScene extends Phaser.Scene {
     this.debugDraw = false;
     this.debugGfx = null;
     this.wallCollider = null;
+    this.grassCollisionLayer = null;
     this.playerWalkable = null;
     this.playerPath = [];
     this.arrivalPortalState = null;
@@ -175,6 +178,33 @@ export class WorldScene extends Phaser.Scene {
         if (fishLayer) {
           fishLayer.setVisible(false);
           fishLayer.setCollisionByExclusion([-1, WATER.TILE_INDEX]);
+        }
+      }
+    }
+
+    // Grass-only collision layer for mice/cats: blocks walls (1) + water (4)
+    if (this.groundLayer && (this.levelDef.mice || this.levelDef.cats)) {
+      const tileData: number[][] = [];
+      for (let row = 0; row < this.map.height; row++) {
+        const rowArr: number[] = [];
+        for (let col = 0; col < this.map.width; col++) {
+          const tile = this.groundLayer.getTileAt(col, row);
+          rowArr.push(tile ? tile.index : -1);
+        }
+        tileData.push(rowArr);
+      }
+      const grassMap = this.make.tilemap({
+        data: tileData,
+        tileWidth: this.map.tileWidth,
+        tileHeight: this.map.tileHeight,
+      });
+      const grassTileset = grassMap.addTilesetImage('tileset', 'tileset');
+      if (grassTileset) {
+        this.grassCollisionLayer = grassMap.createLayer(0, grassTileset, 0, 0);
+        if (this.grassCollisionLayer) {
+          this.grassCollisionLayer.setVisible(false);
+          // Only grass (2) and portal (3) tiles are walkable
+          this.grassCollisionLayer.setCollisionByExclusion([-1, 2, 3]);
         }
       }
     }
@@ -931,9 +961,9 @@ export class WorldScene extends Phaser.Scene {
         );
         this.cats.push(cat);
 
-        // Cat collides with walls
-        if (this.groundLayer) {
-          this.physics.add.collider(cat, this.groundLayer);
+        // Cat collides with walls + water
+        if (this.grassCollisionLayer) {
+          this.physics.add.collider(cat, this.grassCollisionLayer);
         }
 
         // Cat hurts the player
@@ -979,9 +1009,9 @@ export class WorldScene extends Phaser.Scene {
       miceCfg.fleeRadius,
     );
 
-    // Mouse collides with walls
-    if (this.groundLayer) {
-      this.physics.add.collider(mouse, this.groundLayer);
+    // Mouse collides with walls + water
+    if (this.grassCollisionLayer) {
+      this.physics.add.collider(mouse, this.grassCollisionLayer);
     }
 
     // Player collects mouse on overlap
@@ -992,6 +1022,17 @@ export class WorldScene extends Phaser.Scene {
       undefined,
       this
     );
+
+    // Cats eat mice on overlap
+    for (const cat of this.cats) {
+      this.physics.add.overlap(
+        cat,
+        mouse,
+        () => this.catEatsMouse(mouse),
+        undefined,
+        this
+      );
+    }
 
     this.mice.push(mouse);
   }
@@ -1005,6 +1046,11 @@ export class WorldScene extends Phaser.Scene {
     mouse.collect();
     this.events.emit('scoreChanged', this.score);
     this.checkPortalUnlocks();
+  }
+
+  private catEatsMouse(mouse: Mouse): void {
+    if (!mouse.active) return;
+    mouse.collect();
   }
 
   private handleCatHit(
