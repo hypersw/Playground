@@ -12,6 +12,8 @@ export interface LevelTransition {
   level: number;
   score: number;
   lives: number;
+  /** The level the player is coming from (used to find the arrival portal) */
+  fromLevel?: number;
 }
 
 interface PortalState {
@@ -49,6 +51,11 @@ export class WorldScene extends Phaser.Scene {
   // Noclip
   public noclip: boolean = false;
   private wallCollider: Phaser.Physics.Arcade.Collider | null = null;
+
+  // Level transition: which level the player arrived from
+  private arrivedFromLevel: number | undefined = undefined;
+  // Portal cooldown to prevent immediate re-entry
+  private portalCooldownUntil: number = 0;
 
   // Portals
   private portalStates: PortalState[] = [];
@@ -96,6 +103,9 @@ export class WorldScene extends Phaser.Scene {
       this.lives = LIVES.INITIAL;
     }
 
+    // Track arrival source for portal spawning
+    this.arrivedFromLevel = data?.fromLevel;
+
     // Reset per-scene state
     this.anglerfishList = [];
     this.portalStates = [];
@@ -107,6 +117,7 @@ export class WorldScene extends Phaser.Scene {
     this.wallCollider = null;
     this.playerWalkable = null;
     this.playerPath = [];
+    this.portalCooldownUntil = 0;
     this.joystickActive = false;
     this.lastRippleTime = 0;
   }
@@ -155,11 +166,25 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
-    // Player spawn
+    // Player spawn — prefer the portal that links back to the source level
     let playerX = PLAYER.START_X;
     let playerY = PLAYER.START_Y;
+    let spawnedAtPortal = false;
 
-    if (this.groundLayer) {
+    if (this.arrivedFromLevel !== undefined) {
+      const arrivalPortal = this.levelDef.portals.find(
+        p => p.targetLevel === this.arrivedFromLevel
+      );
+      if (arrivalPortal) {
+        const tileSize = this.map.tileWidth;
+        playerX = arrivalPortal.col * tileSize + tileSize / 2;
+        playerY = arrivalPortal.row * tileSize + tileSize / 2;
+        spawnedAtPortal = true;
+      }
+    }
+
+    // Fallback to spawn region if no arrival portal matched
+    if (!spawnedAtPortal && this.groundLayer) {
       const spawnTiles: Phaser.Tilemaps.Tile[] = [];
       const { minCol, maxCol, minRow, maxRow } = this.levelDef.spawnRegion;
       for (let y = minRow; y <= maxRow; y++) {
@@ -173,6 +198,11 @@ export class WorldScene extends Phaser.Scene {
         playerX = t.pixelX + this.map.tileWidth / 2;
         playerY = t.pixelY + this.map.tileHeight / 2;
       }
+    }
+
+    // Portal cooldown: prevent immediate re-entry after spawning on a portal
+    if (spawnedAtPortal) {
+      this.portalCooldownUntil = Date.now() + 1000;
     }
 
     this.player = new Player(this, playerX, playerY);
@@ -776,7 +806,11 @@ export class WorldScene extends Phaser.Scene {
       this.physics.add.overlap(
         this.player,
         zone,
-        () => { if (state.open) this.handlePortalReached(state); },
+        () => {
+          if (state.open && Date.now() > this.portalCooldownUntil) {
+            this.handlePortalReached(state);
+          }
+        },
         undefined,
         this
       );
@@ -797,11 +831,13 @@ export class WorldScene extends Phaser.Scene {
     const cy = state.def.row * tileSize + tileSize / 2;
     const r = tileSize * 0.42;
 
+    // Draw at origin so scale tweens around the center
     state.gfx.clear();
+    state.gfx.setPosition(cx, cy);
     state.gfx.fillStyle(0x446688, 0.55);
-    state.gfx.fillCircle(cx, cy, r);
+    state.gfx.fillCircle(0, 0, r);
     state.gfx.lineStyle(1, 0x446688, 0.9);
-    state.gfx.strokeCircle(cx, cy, r);
+    state.gfx.strokeCircle(0, 0, r);
 
     state.open = false;
     state.priceTag.setVisible(true);
@@ -813,11 +849,13 @@ export class WorldScene extends Phaser.Scene {
     const cy = state.def.row * tileSize + tileSize / 2;
     const r = tileSize * 0.42;
 
+    // Draw at origin so scale tweens around the center
     state.gfx.clear();
+    state.gfx.setPosition(cx, cy);
     state.gfx.fillStyle(0x00ffff, 0.5);
-    state.gfx.fillCircle(cx, cy, r);
+    state.gfx.fillCircle(0, 0, r);
     state.gfx.lineStyle(1.5, 0x8844ff, 1);
-    state.gfx.strokeCircle(cx, cy, r + 1);
+    state.gfx.strokeCircle(0, 0, r + 1);
 
     state.open = true;
 
@@ -828,10 +866,10 @@ export class WorldScene extends Phaser.Scene {
     if (!state.pulseTween) {
       state.pulseTween = this.tweens.add({
         targets: state.gfx,
-        scaleX: 1.25,
-        scaleY: 1.25,
-        alpha: 0.75,
-        duration: 700,
+        scaleX: 1.15,
+        scaleY: 1.15,
+        alpha: 0.7,
+        duration: 800,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut',
@@ -895,6 +933,7 @@ export class WorldScene extends Phaser.Scene {
           level: state.def.targetLevel,
           score: this.score,
           lives: this.lives,
+          fromLevel: this.currentLevel,
         };
         this.events.emit('levelTransition', transition);
         this.scene.start('WorldScene', transition);
