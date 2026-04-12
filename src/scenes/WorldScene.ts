@@ -210,6 +210,22 @@ export class WorldScene extends Phaser.Scene {
     this.player = new Player(this, playerX, playerY);
     this.player.setDepth(DEPTHS.PLAYER);
 
+    // Arrival animation: reverse of the exit spin+zoom
+    if (spawnedAtPortal) {
+      this.player.setAlpha(0);
+      this.player.setScale(2.5);
+      this.player.setAngle(-360);
+      this.tweens.add({
+        targets: this.player,
+        alpha: 1,
+        scaleX: 1,
+        scaleY: 1,
+        angle: 0,
+        duration: 600,
+        ease: 'Cubic.easeOut',
+      });
+    }
+
     if (this.groundLayer) {
       this.wallCollider = this.physics.add.collider(this.player, this.groundLayer);
     }
