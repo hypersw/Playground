@@ -15,7 +15,7 @@ Before doing any work, read the full project prompt:
 
 ## Git discipline
 
-- **Commit after every meaningful batch of work** — either when a feature is complete and working, or when switching to a different task
+- **Commit and push as soon as a piece of functionality is complete** — do not wait for the user to ask
 - Partition commits by feature/concern; do not bundle unrelated changes
 - Always type-check before committing (`tsc --noEmit` must pass)
 - Write descriptive commit messages that explain *what* and *why*
