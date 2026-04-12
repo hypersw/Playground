@@ -1,5 +1,14 @@
 import Phaser from 'phaser';
 
+/** Per-direction body center in sprite-local pixel coords (32×48 frame).
+ *  Measured from the torso center in the pixel art, excluding head/ears/tail/legs. */
+const CAT_BODY_CENTER: Record<string, { x: number; y: number }> = {
+  down:  { x: 15.5, y: 31 },   // South: torso rows 29-33, cols 10-21
+  left:  { x: 16,   y: 34 },   // West:  torso rows 31-36, cols 8-24
+  right: { x: 15.5, y: 31 },   // East:  torso rows 29-33, cols 10-21
+  up:    { x: 16,   y: 34 },   // North: torso rows 31-36, cols 8-24
+};
+
 /**
  * Cat — hostile NPC on grass levels.
  *
@@ -12,6 +21,7 @@ import Phaser from 'phaser';
  * Hurts the player on contact. Hitbox is smaller than beaver — cats are liquid.
  */
 export class Cat extends Phaser.Physics.Arcade.Sprite {
+  private static readonly BODY_SIZE = 6;
   private target: Phaser.GameObjects.Sprite | null = null;
   private player!: Phaser.GameObjects.Sprite;
   private chaseSpeed: number;
@@ -40,13 +50,14 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     this.chaseSpeed = speed;
     this.sightRange = sightRange;
 
+    // Origin at average body torso center; per-direction offset updated each frame
+    this.setOrigin(0.48, 0.68);
     this.setDepth(9);
 
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setCollideWorldBounds(true);
-    // Small hitbox — cats are liquid! (6×6 centered on 32×48 frame)
-    body.setSize(6, 6);
-    body.setOffset(13, 24);
+    body.setSize(Cat.BODY_SIZE, Cat.BODY_SIZE);
+    this.syncBodyOffset();
 
     this.createAnimations();
   }
@@ -123,5 +134,14 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     } else {
       this.anims.play(`cat-idle-${this.lastDirection}`, true);
     }
+
+    this.syncBodyOffset();
+  }
+
+  /** Update physics body offset to match the current direction's torso center */
+  private syncBodyOffset(): void {
+    const c = CAT_BODY_CENTER[this.lastDirection];
+    const half = Cat.BODY_SIZE / 2;
+    (this.body as Phaser.Physics.Arcade.Body).setOffset(c.x - half, c.y - half);
   }
 }
