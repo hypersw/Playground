@@ -51,6 +51,7 @@ export class WorldScene extends Phaser.Scene {
   private immuneEndTime: number = 0;
   private isHit: boolean = false;
   private hitEndTime: number = 0;
+  private lastBleedTime: number = 0;
   public isGameOver: boolean = false;
   public isShopOpen: boolean = false;
 
@@ -537,7 +538,15 @@ export class WorldScene extends Phaser.Scene {
       const body = this.player.body as Phaser.Physics.Arcade.Body;
       if (body.velocity.length() > 0) this.checkAndCreateRipple(time);
 
-      if (this.isHit && time >= this.hitEndTime) this.isHit = false;
+      // Bleed effects while hit — terrain-adaptive
+      if (this.isHit) {
+        if (time >= this.hitEndTime) {
+          this.isHit = false;
+        } else if (time - this.lastBleedTime > 150) {
+          this.createBleedEffect(this.player.x, this.player.y);
+          this.lastBleedTime = time;
+        }
+      }
       if (this.isImmune && time >= this.immuneEndTime) this.isImmune = false;
 
       // Distance-based hysteresis: once player walks 2 tiles away from the
@@ -786,8 +795,40 @@ export class WorldScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // Ripple helpers
+  // Ripple / bleed helpers
   // ---------------------------------------------------------------------------
+
+  /** Create a hit effect at position — red ripple on water, red droplet on land */
+  private createBleedEffect(x: number, y: number): void {
+    const tileX = this.map.worldToTileX(x);
+    const tileY = this.map.worldToTileY(y);
+    if (tileX === null || tileY === null || !this.groundLayer) return;
+
+    const tile = this.groundLayer.getTileAt(tileX, tileY);
+    const onWater = tile && tile.index === WATER.TILE_INDEX;
+
+    if (onWater) {
+      // Red ripple (same as existing hit ripple)
+      this.createRipple(x, y, ANGLERFISH.RIPPLES.COLOR);
+    } else {
+      // Land: red filled droplet — smaller and filled, like a blood splat
+      const droplet = this.add.graphics();
+      droplet.fillStyle(0xcc0000, 0.8);
+      droplet.fillCircle(0, 0, 1);
+      droplet.setPosition(x, y + WATER.RIPPLES.Y_OFFSET);
+      droplet.setDepth(WATER.RIPPLES.DEPTH);
+
+      this.tweens.add({
+        targets: droplet,
+        scaleX: WATER.RIPPLES.SCALE * 0.5,
+        scaleY: WATER.RIPPLES.SCALE * 0.5,
+        alpha: 0,
+        duration: WATER.RIPPLES.DURATION * 0.7,
+        ease: 'Sine.easeOut',
+        onComplete: () => { droplet.destroy(); },
+      });
+    }
+  }
 
   private checkAndCreateRipple(time: number): void {
     if (time - this.lastRippleTime < WATER.RIPPLES.SPAWN_DELAY) return;
@@ -916,11 +957,9 @@ export class WorldScene extends Phaser.Scene {
     this.isHit = true;
     this.hitEndTime = this.immuneEndTime;
 
-    for (let i = 0; i < 5; i++) {
-      this.time.delayedCall(i * 100, () => {
-        this.createRipple(this.player.x, this.player.y, ANGLERFISH.RIPPLES.COLOR);
-      });
-    }
+    // Initial bleed burst — continuous bleed effects follow in update()
+    this.createBleedEffect(this.player.x, this.player.y);
+    this.lastBleedTime = this.time.now;
 
     this.events.emit('livesChanged', this.lives, this.player.x, this.player.y);
     if (this.lives <= 0) {
@@ -1001,6 +1040,7 @@ export class WorldScene extends Phaser.Scene {
           catsCfg.sightRange,
         );
         cat.catId = i;
+        cat.setTerritory(stripMinCol, stripMaxCol, this.map.tileWidth);
         this.cats.push(cat);
 
         // Cat collides with walls + water
@@ -1091,9 +1131,8 @@ export class WorldScene extends Phaser.Scene {
 
   private handleCatHit(
     _player: Phaser.Types.Physics.Arcade.GameObjectWithBody,
-    _cat: Phaser.Types.Physics.Arcade.GameObjectWithBody
+    catObj: Phaser.Types.Physics.Arcade.GameObjectWithBody
   ): void {
-    // Reuse the same immunity/lives logic as anglerfish
     if (this.isImmune || this.lives <= 0) return;
 
     this.lives = Math.max(0, this.lives - 1);
@@ -1101,6 +1140,10 @@ export class WorldScene extends Phaser.Scene {
     this.immuneEndTime = this.time.now + LIVES.ANIMATION_DURATION;
     this.isHit = true;
     this.hitEndTime = this.immuneEndTime;
+
+    // Tell the cat to flee after biting
+    const cat = catObj as unknown as Cat;
+    cat.startFleeing();
 
     this.events.emit('livesChanged', this.lives, this.player.x, this.player.y);
     if (this.lives <= 0) {

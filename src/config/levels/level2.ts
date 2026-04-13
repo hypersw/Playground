@@ -59,7 +59,7 @@ const level2: LevelDef = {
   },
 
   cats: {
-    count: 3,
+    count: 4,
     speed: 100,
     sightRange: 120,
   },

@@ -2,19 +2,6 @@ import Phaser from 'phaser';
 import { directionFromVelocity } from '../utils/direction';
 import { findPath } from '../utils/pathfinder';
 
-/**
- * Cat — hostile NPC on grass levels.
- *
- * AI priority:
- *   1. Chase nearest mouse within sight range
- *   2. If no mouse nearby, chase the player if within sight range
- *   3. Otherwise idle
- *
- * Navigates on grass only (collides with walls and water).
- * Hurts the player on contact. Hitbox is smaller than beaver — cats are liquid.
- *
- * Sprite frames are 34×52 (padded so the body torso center is at frame center).
- */
 // Debug log ring buffer — readable from browser console via window.__catLog
 const CAT_LOG: string[] = [];
 const CAT_LOG_MAX = 200;
@@ -24,39 +11,60 @@ function catLog(msg: string): void {
   (window as unknown as Record<string, unknown>).__catLog = CAT_LOG;
 }
 
+type CatState = 'idle' | 'chasing' | 'returning' | 'fleeing';
+
+/**
+ * Cat — hostile NPC on grass levels.
+ *
+ * Has a home territory (1/N strip of the map). Behavior by state:
+ *   idle     — wander within home territory
+ *   chasing  — pursue mouse (slight territory overlap) or player (no limit)
+ *   returning — walk back to home center, no chasing
+ *   fleeing  — run away after biting player, no chasing for cooldown
+ */
 export class Cat extends Phaser.Physics.Arcade.Sprite {
   private static readonly BODY_SIZE = 6;
-  public catId: number = 0;  // set by WorldScene after creation
-  private target: Phaser.GameObjects.Sprite | null = null;
+  public catId: number = 0;
+  public target: Phaser.GameObjects.Sprite | null = null;
   private player!: Phaser.GameObjects.Sprite;
   private chaseSpeed: number;
   private sightRange: number;
   private catchRadius: number;
   private lastDirection: string = 'down';
 
-  /** Reference to the scene's mouse group for target selection */
   private getMice: () => Phaser.GameObjects.Sprite[];
-  /** Called when cat catches a mouse */
   private onCatchMouse: ((mouse: Phaser.GameObjects.Sprite) => void) | null = null;
 
-  /** Stuck detection: if chasing the same target and barely moving, give up */
+  // State machine
+  private aiState: CatState = 'idle';
+
+  // Territory (tile columns, set by WorldScene)
+  private homeMinCol: number = 0;
+  private homeMaxCol: number = 99;
+  private homeCenterX: number = 0;  // world px
+  private static readonly TERRITORY_OVERLAP_TILES = 10;
+
+  // Stuck detection
   private stuckTarget: Phaser.GameObjects.Sprite | null = null;
   private stuckSince: number = 0;
-  /** Blacklisted mice the cat gave up on — maps sprite to expiry timestamp */
   private blacklist = new Map<Phaser.GameObjects.Sprite, number>();
   private static readonly BLACKLIST_DURATION = 5000;
 
-  /** Idle wander state */
+  // Idle wander
   private wanderVx: number = 0;
   private wanderVy: number = 0;
   private wanderUntil: number = 0;
   private wanderMoving: boolean = false;
   private wanderSpeed: number = 0;
 
-  /** Other cats in the scene, for anti-herd steering */
+  // Other cats reference
   private getOtherCats: () => Cat[] = () => [];
 
-  /** A* pathfinding state */
+  // Flee after biting player
+  private fleeUntil: number = 0;
+  private static readonly FLEE_COOLDOWN = 4000;
+
+  // A* pathfinding
   private walkableGrid: boolean[][] | null = null;
   private tilemap: Phaser.Tilemaps.Tilemap | null = null;
   private path: Array<{ x: number; y: number }> = [];
@@ -90,14 +98,12 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     this.sightRange = sightRange;
     this.catchRadius = 20;
 
-    // Start idle with a pause
     this.pickWanderPause();
 
     this.setDepth(9);
 
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setCollideWorldBounds(true);
-    // Body centered on the frame center (body center is pre-aligned in the sprite)
     const half = Cat.BODY_SIZE / 2;
     body.setSize(Cat.BODY_SIZE, Cat.BODY_SIZE);
     body.setOffset(this.width * 0.5 - half, this.height * 0.5 - half);
@@ -108,7 +114,7 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
   private createAnimations(): void {
     if (!this.scene.anims.exists('cat-idle-down')) {
       const s = this.scene;
-      // Cat sprite row order: N(0), E(1), S(2), W(3) — confirmed by user
+      // Cat sprite row order: N(0), E(1), S(2), W(3)
       s.anims.create({ key: 'cat-idle-up',    frames: [{ key: 'cat', frame: 1 }],  frameRate: 1 });
       s.anims.create({ key: 'cat-idle-right', frames: [{ key: 'cat', frame: 4 }],  frameRate: 1 });
       s.anims.create({ key: 'cat-idle-down',  frames: [{ key: 'cat', frame: 7 }],  frameRate: 1 });
@@ -121,6 +127,35 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Public API
+  // ---------------------------------------------------------------------------
+
+  setTerritory(minCol: number, maxCol: number, tileWidth: number): void {
+    this.homeMinCol = minCol;
+    this.homeMaxCol = maxCol;
+    this.homeCenterX = ((minCol + maxCol) / 2) * tileWidth + tileWidth / 2;
+  }
+
+  setOtherCats(fn: () => Cat[]): void {
+    this.getOtherCats = fn;
+  }
+
+  /** Called by WorldScene when this cat bites the player */
+  startFleeing(): void {
+    this.aiState = 'fleeing';
+    this.fleeUntil = this.scene.time.now + Cat.FLEE_COOLDOWN;
+    this.target = null;
+    this.path = [];
+    this.lastPathTime = 0; // force recompute
+
+    catLog(`cat${this.catId} FLEE start`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Main update
+  // ---------------------------------------------------------------------------
+
   update(): void {
     const body = this.body as Phaser.Physics.Arcade.Body;
     const now = this.scene.time.now;
@@ -130,105 +165,17 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
       if (now > expiry || !sprite.active) this.blacklist.delete(sprite);
     }
 
-    // Collect targets other cats are chasing (for anti-herd)
-    const otherCatTargets = new Set<Phaser.GameObjects.Sprite>();
-    for (const other of this.getOtherCats()) {
-      if (other !== this && other.target && other.active) {
-        otherCatTargets.add(other.target);
-      }
-    }
-
-    // Priority: if player is close (within aggro range), chase them
-    const playerDist = Phaser.Math.Distance.Between(this.x, this.y, this.player.x, this.player.y);
-    const aggroRange = this.sightRange * 0.6;
-
-    this.target = null;
-
-    if (playerDist < aggroRange) {
-      this.target = this.player;
-    } else {
-      // Otherwise pick nearest non-blacklisted mouse in range
-      // Penalize mice that another cat is already chasing (anti-herd)
-      const mice = this.getMice();
-      let bestScore = Infinity;
-
-      for (const m of mice) {
-        if (!m.active || this.blacklist.has(m)) continue;
-        let d = Phaser.Math.Distance.Between(this.x, this.y, m.x, m.y);
-        if (d >= this.sightRange) continue;
-        if (otherCatTargets.has(m)) d *= 2;
-        if (d < bestScore) {
-          bestScore = d;
-          this.target = m;
-        }
-      }
-
-      // No mouse in range — chase player if within sight range
-      if (!this.target && playerDist < this.sightRange) {
-        this.target = this.player;
-      }
-    }
-
-    if (this.target) {
-      const directDist = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
-
-      // Catch mouse if close enough
-      const isMouseTarget = this.target !== this.player;
-      if (isMouseTarget && directDist <= this.catchRadius && this.target.active) {
-        catLog(`cat${this.catId} CATCH dist=${directDist.toFixed(1)} active=${this.target.active}`);
-        this.onCatchMouse?.(this.target);
-        this.blacklist.delete(this.target);
-        this.stuckTarget = null;
-        this.target = null;
-        this.path = [];
-        body.setVelocity(0, 0);
-      } else {
-        // Recompute A* path periodically
-        if (now - this.lastPathTime > Cat.PATH_RECOMPUTE_MS) {
-          this.recomputePath();
-          this.lastPathTime = now;
-        }
-        this.followPath(body);
-
-        // Log state periodically when chasing a mouse
-        if (isMouseTarget && now % 1000 < 20) {
-          const speed = body.velocity.length();
-          const tBody = (this.target as Phaser.Physics.Arcade.Sprite).body as Phaser.Physics.Arcade.Body;
-          catLog(`cat${this.catId} chase dist=${directDist.toFixed(1)} speed=${speed.toFixed(1)} ` +
-            `pos=(${this.x.toFixed(1)},${this.y.toFixed(1)}) tgt=(${this.target.x.toFixed(1)},${this.target.y.toFixed(1)}) ` +
-            `tgtBody=(${tBody?.enable},${tBody?.x.toFixed(1)},${tBody?.y.toFixed(1)}) ` +
-            `path=${this.path.length} bl=${this.blacklist.size} stuckFor=${this.stuckTarget === this.target ? now - this.stuckSince : 0}`);
-        }
-
-        // Stuck detection: if barely moving while chasing a mouse, blacklist
-        if (isMouseTarget) {
-          const speed = body.velocity.length();
-          if (speed < this.chaseSpeed * 0.2) {
-            if (this.stuckTarget !== this.target) {
-              this.stuckTarget = this.target;
-              this.stuckSince = now;
-              catLog(`cat${this.catId} STUCK_START speed=${speed.toFixed(1)}`);
-            } else if (now - this.stuckSince > 2000) {
-              catLog(`cat${this.catId} BLACKLIST after ${now - this.stuckSince}ms`);
-              this.blacklist.set(this.target, now + Cat.BLACKLIST_DURATION);
-              this.stuckTarget = null;
-              this.target = null;
-              this.path = [];
-              body.setVelocity(0, 0);
-            }
-          } else {
-            if (this.stuckTarget === this.target) {
-              catLog(`cat${this.catId} UNSTUCK speed=${speed.toFixed(1)}`);
-            }
-            this.stuckSince = now;
-          }
-        }
-      }
-    } else {
-      // Idle: wander lazily
-      this.stuckTarget = null;
-      this.path = [];
-      this.idleWander(body, now);
+    switch (this.aiState) {
+      case 'fleeing':
+        this.updateFleeing(body, now);
+        break;
+      case 'returning':
+        this.updateReturning(body, now);
+        break;
+      case 'idle':
+      case 'chasing':
+        this.updateChasing(body, now);
+        break;
     }
 
     // Animation
@@ -241,16 +188,224 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  /** Set after all cats are created so each cat knows about the others */
-  setOtherCats(fn: () => Cat[]): void {
-    this.getOtherCats = fn;
+  // ---------------------------------------------------------------------------
+  // State: fleeing (after biting player)
+  // ---------------------------------------------------------------------------
+
+  private updateFleeing(body: Phaser.Physics.Arcade.Body, now: number): void {
+    if (now > this.fleeUntil) {
+      this.aiState = this.isInHomeTerritory() ? 'idle' : 'returning';
+      this.path = [];
+      body.setVelocity(0, 0);
+      catLog(`cat${this.catId} FLEE done -> ${this.aiState}`);
+      return;
+    }
+
+    // Pathfind away from player
+    if (now - this.lastPathTime > Cat.PATH_RECOMPUTE_MS) {
+      this.computeFleePath();
+      this.lastPathTime = now;
+    }
+    this.followPath(body, this.chaseSpeed);
+  }
+
+  private computeFleePath(): void {
+    if (!this.walkableGrid || !this.tilemap) return;
+    const map = this.tilemap;
+    const catTileX = map.worldToTileX(this.x) ?? 0;
+    const catTileY = map.worldToTileY(this.y) ?? 0;
+
+    // Pick a flee target: opposite direction from player, ~half viewport away
+    const dx = this.x - this.player.x;
+    const dy = this.y - this.player.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const fleeDist = 8; // tiles (~half viewport at 15 tiles visible)
+
+    let targetTileX: number, targetTileY: number;
+    if (dist > 1) {
+      targetTileX = Math.round(catTileX + (dx / dist) * fleeDist);
+      targetTileY = Math.round(catTileY + (dy / dist) * fleeDist);
+    } else {
+      // Player is on top of us, flee toward home center
+      targetTileX = Math.round(this.homeCenterX / (this.tilemap?.tileWidth ?? 16));
+      targetTileY = catTileY;
+    }
+
+    // Clamp to map
+    const rows = this.walkableGrid.length;
+    const cols = rows > 0 ? this.walkableGrid[0].length : 0;
+    targetTileX = Math.max(0, Math.min(cols - 1, targetTileX));
+    targetTileY = Math.max(0, Math.min(rows - 1, targetTileY));
+
+    // Find nearest walkable to target
+    if (!this.walkableGrid[targetTileY]?.[targetTileX]) {
+      const nearest = this.nearestWalkableTile(targetTileX, targetTileY);
+      if (!nearest) { this.path = []; return; }
+      targetTileX = nearest.x;
+      targetTileY = nearest.y;
+    }
+
+    this.path = findPath(this.walkableGrid, catTileX, catTileY, targetTileX, targetTileY);
   }
 
   // ---------------------------------------------------------------------------
-  // Idle wander (cat-style: walk a bit, sit for a while)
+  // State: returning to home territory
+  // ---------------------------------------------------------------------------
+
+  private updateReturning(body: Phaser.Physics.Arcade.Body, now: number): void {
+    if (this.isInHomeTerritory()) {
+      this.aiState = 'idle';
+      this.path = [];
+      body.setVelocity(0, 0);
+      return;
+    }
+
+    // Walk toward home center
+    if (now - this.lastPathTime > Cat.PATH_RECOMPUTE_MS) {
+      this.computeReturnPath();
+      this.lastPathTime = now;
+    }
+    this.followPath(body, this.chaseSpeed * 0.7);
+  }
+
+  private computeReturnPath(): void {
+    if (!this.walkableGrid || !this.tilemap) return;
+    const map = this.tilemap;
+    const catTileX = map.worldToTileX(this.x) ?? 0;
+    const catTileY = map.worldToTileY(this.y) ?? 0;
+
+    let targetTileX = Math.round(this.homeCenterX / map.tileWidth);
+    const targetTileY = Math.round(map.height / 2);
+
+    const cols = this.walkableGrid[0]?.length ?? 0;
+    targetTileX = Math.max(0, Math.min(cols - 1, targetTileX));
+
+    if (!this.walkableGrid[targetTileY]?.[targetTileX]) {
+      const nearest = this.nearestWalkableTile(targetTileX, targetTileY);
+      if (!nearest) { this.path = []; return; }
+      targetTileX = nearest.x;
+    }
+
+    this.path = findPath(this.walkableGrid, catTileX, catTileY, targetTileX, targetTileY);
+  }
+
+  // ---------------------------------------------------------------------------
+  // State: idle / chasing
+  // ---------------------------------------------------------------------------
+
+  private updateChasing(body: Phaser.Physics.Arcade.Body, now: number): void {
+    // Collect targets other cats are chasing
+    const otherCatTargets = new Set<Phaser.GameObjects.Sprite>();
+    for (const other of this.getOtherCats()) {
+      if (other !== this && other.target && other.active) {
+        otherCatTargets.add(other.target);
+      }
+    }
+
+    // Target selection
+    const playerDist = Phaser.Math.Distance.Between(this.x, this.y, this.player.x, this.player.y);
+    const aggroRange = this.sightRange * 0.6;
+
+    this.target = null;
+
+    // Player within aggro range — chase regardless of territory
+    if (playerDist < aggroRange) {
+      this.target = this.player;
+    } else {
+      // Pick nearest mouse, but enforce territory for mice
+      const mice = this.getMice();
+      let bestScore = Infinity;
+
+      for (const m of mice) {
+        if (!m.active || this.blacklist.has(m)) continue;
+        // Territory check: mouse must be within home ± overlap
+        const mTileX = (this.tilemap?.worldToTileX(m.x)) ?? 0;
+        if (mTileX < this.homeMinCol - Cat.TERRITORY_OVERLAP_TILES ||
+            mTileX > this.homeMaxCol + Cat.TERRITORY_OVERLAP_TILES) continue;
+
+        let d = Phaser.Math.Distance.Between(this.x, this.y, m.x, m.y);
+        if (d >= this.sightRange) continue;
+        if (otherCatTargets.has(m)) d *= 2;
+        if (d < bestScore) {
+          bestScore = d;
+          this.target = m;
+        }
+      }
+
+      // No mouse — chase player if in sight
+      if (!this.target && playerDist < this.sightRange) {
+        this.target = this.player;
+      }
+    }
+
+    if (this.target) {
+      this.aiState = 'chasing';
+      const directDist = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
+      const isMouseTarget = this.target !== this.player;
+
+      // Catch mouse
+      if (isMouseTarget && directDist <= this.catchRadius && this.target.active) {
+        catLog(`cat${this.catId} CATCH dist=${directDist.toFixed(1)}`);
+        this.onCatchMouse?.(this.target);
+        this.blacklist.delete(this.target);
+        this.stuckTarget = null;
+        this.target = null;
+        this.path = [];
+        body.setVelocity(0, 0);
+        // After catching, check if we're outside home territory
+        if (!this.isInHomeTerritory()) {
+          this.aiState = 'returning';
+        } else {
+          this.aiState = 'idle';
+        }
+      } else {
+        // A* chase
+        if (now - this.lastPathTime > Cat.PATH_RECOMPUTE_MS) {
+          this.recomputePath();
+          this.lastPathTime = now;
+        }
+        this.followPath(body, this.chaseSpeed);
+
+        // Stuck detection for mice
+        if (isMouseTarget) {
+          const speed = body.velocity.length();
+          if (speed < this.chaseSpeed * 0.2) {
+            if (this.stuckTarget !== this.target) {
+              this.stuckTarget = this.target;
+              this.stuckSince = now;
+            } else if (now - this.stuckSince > 2000) {
+              catLog(`cat${this.catId} BLACKLIST`);
+              this.blacklist.set(this.target, now + Cat.BLACKLIST_DURATION);
+              this.stuckTarget = null;
+              this.target = null;
+              this.path = [];
+              body.setVelocity(0, 0);
+            }
+          } else {
+            this.stuckSince = now;
+          }
+        }
+      }
+    } else {
+      // No target — idle wander within territory
+      this.aiState = 'idle';
+      this.stuckTarget = null;
+      this.path = [];
+      this.idleWander(body, now);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Idle wander within home territory
   // ---------------------------------------------------------------------------
 
   private idleWander(body: Phaser.Physics.Arcade.Body, now: number): void {
+    // If outside home territory, switch to returning
+    if (!this.isInHomeTerritory()) {
+      this.aiState = 'returning';
+      return;
+    }
+
     if (now >= this.wanderUntil) {
       if (this.wanderMoving) {
         this.pickWanderPause();
@@ -260,6 +415,17 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     }
 
     if (this.wanderMoving) {
+      body.setVelocity(this.wanderVx, this.wanderVy);
+
+      // Steer back if approaching territory edge
+      const tileWidth = this.tilemap?.tileWidth ?? 16;
+      const minX = this.homeMinCol * tileWidth;
+      const maxX = (this.homeMaxCol + 1) * tileWidth;
+      if (this.x < minX + tileWidth * 2 && this.wanderVx < 0) {
+        this.wanderVx = Math.abs(this.wanderVx);
+      } else if (this.x > maxX - tileWidth * 2 && this.wanderVx > 0) {
+        this.wanderVx = -Math.abs(this.wanderVx);
+      }
       body.setVelocity(this.wanderVx, this.wanderVy);
     } else {
       body.setVelocity(0, 0);
@@ -271,7 +437,6 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     this.wanderVx = Math.cos(angle) * this.wanderSpeed;
     this.wanderVy = Math.sin(angle) * this.wanderSpeed;
     this.wanderMoving = true;
-    // Walk for 1–3 seconds
     this.wanderUntil = this.scene.time.now + 1000 + Math.random() * 2000;
   }
 
@@ -279,8 +444,13 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     this.wanderVx = 0;
     this.wanderVy = 0;
     this.wanderMoving = false;
-    // Sit for 2–5 seconds (cats are lazy)
     this.wanderUntil = this.scene.time.now + 2000 + Math.random() * 3000;
+  }
+
+  private isInHomeTerritory(): boolean {
+    const tileWidth = this.tilemap?.tileWidth ?? 16;
+    const tileX = this.x / tileWidth;
+    return tileX >= this.homeMinCol && tileX <= this.homeMaxCol;
   }
 
   // ---------------------------------------------------------------------------
@@ -304,7 +474,6 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
       return;
     }
 
-    // If target is on a non-walkable tile, find nearest walkable
     if (!this.walkableGrid[destTileY]?.[destTileX]) {
       const nearest = this.nearestWalkableTile(destTileX, destTileY);
       if (!nearest) { this.path = []; return; }
@@ -315,7 +484,7 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     this.path = findPath(this.walkableGrid, catTileX, catTileY, destTileX, destTileY);
   }
 
-  private followPath(body: Phaser.Physics.Arcade.Body): void {
+  private followPath(body: Phaser.Physics.Arcade.Body, speed: number): void {
     if (this.path.length === 0 || !this.tilemap) {
       // No path — chase directly as fallback
       if (this.target) {
@@ -323,7 +492,7 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
         const dy = this.target.y - this.y;
         const d = Math.sqrt(dx * dx + dy * dy);
         if (d > 4) {
-          body.setVelocity((dx / d) * this.chaseSpeed, (dy / d) * this.chaseSpeed);
+          body.setVelocity((dx / d) * speed, (dy / d) * speed);
         } else {
           body.setVelocity(0, 0);
         }
@@ -334,7 +503,6 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     const tileSize = this.tilemap.tileWidth;
     const arrivalRadius = tileSize * 0.75;
 
-    // Advance past reached waypoints
     while (
       this.path.length > 0 &&
       Phaser.Math.Distance.Between(
@@ -351,7 +519,6 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
       return;
     }
 
-    // Lookahead steering toward next 1-2 waypoints
     let steerX = 0, steerY = 0, totalW = 0;
     const look = Math.min(2, this.path.length);
     for (let i = 0; i < look; i++) {
@@ -365,7 +532,7 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
 
     const d = Math.sqrt(steerX * steerX + steerY * steerY);
     if (d > 0) {
-      body.setVelocity((steerX / d) * this.chaseSpeed, (steerY / d) * this.chaseSpeed);
+      body.setVelocity((steerX / d) * speed, (steerY / d) * speed);
     }
   }
 
