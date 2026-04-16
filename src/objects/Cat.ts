@@ -37,7 +37,7 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
   private burstOriginX: number = 0;
   private burstOriginY: number = 0;
   private burstActive: boolean = false;
-  private static readonly BURST_DISTANCE = 40;  // ~2.5 tiles
+  private static readonly BURST_DISTANCE = 24;  // ~1.5 tiles
 
   private getMice: () => Phaser.GameObjects.Sprite[];
   private onCatchMouse: ((mouse: Phaser.GameObjects.Sprite) => void) | null = null;
