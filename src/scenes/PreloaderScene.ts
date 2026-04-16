@@ -149,17 +149,13 @@ export class PreloaderScene extends Phaser.Scene {
       ctx.putImageData(imageData, 0, 0);
 
       const key = `mouse-${grade.id}`;
-      this.textures.addCanvas(key, canvas);
-      // Slice into spritesheet frames
-      const tex = this.textures.get(key);
-      const fw = 38, fh = 48;
-      let frame = 0;
-      for (let row = 0; row < 4; row++) {
-        for (let col = 0; col < 3; col++) {
-          tex.add(frame, 0, col * fw, row * fh, fw, fh);
-          frame++;
-        }
-      }
+      // addSpriteSheet needs an HTMLImageElement — convert canvas via data URL
+      const img = new Image();
+      img.src = canvas.toDataURL();
+      this.textures.addSpriteSheet(key, img, {
+        frameWidth: 38,
+        frameHeight: 48,
+      });
     }
   }
 }

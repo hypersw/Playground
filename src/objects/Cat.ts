@@ -33,9 +33,11 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
   private catchRadius: number;
   private lastDirection: string = 'down';
 
-  /** Burst: high speed at start of player chase or flee, decays over distance */
-  private burstRemaining: number = 0;  // world px remaining at burst speed
-  private static readonly BURST_DISTANCE = 32;  // ~2 tiles
+  /** Burst: high speed from a start point, active while within BURST_DISTANCE */
+  private burstOriginX: number = 0;
+  private burstOriginY: number = 0;
+  private burstActive: boolean = false;
+  private static readonly BURST_DISTANCE = 40;  // ~2.5 tiles
 
   private getMice: () => Phaser.GameObjects.Sprite[];
   private onCatchMouse: ((mouse: Phaser.GameObjects.Sprite) => void) | null = null;
@@ -151,7 +153,9 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
   startFleeing(): void {
     this.aiState = 'fleeing';
     this.fleeUntil = this.scene.time.now + Cat.FLEE_COOLDOWN;
-    this.burstRemaining = Cat.BURST_DISTANCE;
+    this.burstActive = true;
+    this.burstOriginX = this.x;
+    this.burstOriginY = this.y;
     this.target = null;
     this.path = [];
     this.lastPathTime = 0; // force recompute
@@ -214,7 +218,6 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
       this.lastPathTime = now;
     }
     this.followPath(body, this.getEffectiveSpeed(this.chaseSpeed));
-    this.consumeBurst(body);
   }
 
   private computeFleePath(): void {
@@ -353,7 +356,9 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
 
       // Trigger burst when starting to chase the player
       if (this.target === this.player && prevTarget !== this.player) {
-        this.burstRemaining = Cat.BURST_DISTANCE;
+        this.burstActive = true;
+    this.burstOriginX = this.x;
+    this.burstOriginY = this.y;
       }
 
       const directDist = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
@@ -382,7 +387,6 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
         }
         const speed = isMouseTarget ? this.chaseSpeed : this.getEffectiveSpeed(this.chaseSpeed);
         this.followPath(body, speed);
-        if (!isMouseTarget) this.consumeBurst(body);
 
         // Stuck detection for mice
         if (isMouseTarget) {
@@ -465,20 +469,19 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     this.wanderUntil = this.scene.time.now + 2000 + Math.random() * 3000;
   }
 
-  /** Get effective speed, consuming burst if available */
+  /** Get effective speed — burst if still within BURST_DISTANCE of origin */
   private getEffectiveSpeed(baseSpeed: number): number {
-    if (this.burstRemaining > 0) {
+    if (this.burstActive) {
+      const dist = Phaser.Math.Distance.Between(
+        this.x, this.y, this.burstOriginX, this.burstOriginY
+      );
+      if (dist > Cat.BURST_DISTANCE) {
+        this.burstActive = false;
+        return baseSpeed;
+      }
       return this.burstSpeed;
     }
     return baseSpeed;
-  }
-
-  /** Consume burst distance based on movement this frame */
-  private consumeBurst(body: Phaser.Physics.Arcade.Body): void {
-    if (this.burstRemaining > 0) {
-      const moved = body.velocity.length() * (1 / 60); // approx per frame
-      this.burstRemaining = Math.max(0, this.burstRemaining - moved);
-    }
   }
 
   private isInHomeTerritory(): boolean {

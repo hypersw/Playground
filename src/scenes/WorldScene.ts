@@ -831,6 +831,32 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  /** Floating "+€N" text that drifts up and fades out at the collection point */
+  private showFloatingMoney(worldX: number, worldY: number, amount: number): void {
+    const zoom = this.cameras.main.zoom;
+    const labelScale = 1 / zoom;
+    const text = this.add.text(worldX, worldY, `+€${amount}`, {
+      fontSize: `${Math.round(8 * zoom)}px`,
+      fontFamily: '"Courier New", monospace',
+      color: '#ffd700',
+      stroke: '#000000',
+      strokeThickness: Math.round(2 * zoom),
+      fontStyle: 'bold',
+    });
+    text.setOrigin(0.5, 1);
+    text.setScale(labelScale);
+    text.setDepth(DEPTHS.UI - 1);
+
+    this.tweens.add({
+      targets: text,
+      y: worldY - 20,
+      alpha: 0,
+      duration: 1200,
+      ease: 'Sine.easeOut',
+      onComplete: () => text.destroy(),
+    });
+  }
+
   private checkAndCreateRipple(time: number): void {
     if (time - this.lastRippleTime < WATER.RIPPLES.SPAWN_DELAY) return;
 
@@ -932,7 +958,9 @@ export class WorldScene extends Phaser.Scene {
     logObj: Phaser.Types.Physics.Arcade.GameObjectWithBody
   ): void {
     const log = logObj as Log;
-    this.score += this.levelDef.logs.pointsPerLog;
+    const value = this.levelDef.logs.pointsPerLog;
+    this.score += value;
+    this.showFloatingMoney(log.x, log.y, value);
     for (let i = 0; i < 3; i++) {
       this.time.delayedCall(i * 100, () => { this.createRipple(log.x, log.y); });
     }
@@ -1118,7 +1146,9 @@ export class WorldScene extends Phaser.Scene {
   private collectMouse(mouse: Mouse): void {
     if (!mouse.active) return;
 
-    this.score += mouse.grade.value;
+    const value = mouse.grade.value;
+    this.score += value;
+    this.showFloatingMoney(mouse.x, mouse.y, value);
     mouse.collect();
     this.events.emit('scoreChanged', this.score);
     this.checkPortalUnlocks();
