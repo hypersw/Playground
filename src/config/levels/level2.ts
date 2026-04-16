@@ -53,14 +53,14 @@ const level2: LevelDef = {
     maxCount: 25,
     initialCount: 15,
     spawnInterval: 2000,
-    pointsPerMouse: 5,
-    fleeSpeed: 120,
+    pointsPerMouse: 0,   // unused — grades define value now
+    fleeSpeed: 0,        // unused — grades define speed now
     fleeRadius: 100,
   },
 
   cats: {
     count: 4,
-    speed: 100,
+    speed: 130,
     sightRange: 120,
   },
 };

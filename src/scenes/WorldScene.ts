@@ -4,6 +4,7 @@ import { Log } from '../objects/Log';
 import { Anglerfish } from '../objects/Anglerfish';
 import { Mouse } from '../objects/Mouse';
 import { Cat } from '../objects/Cat';
+import { pickMouseGrade } from '../config/mouseGrades';
 import { PLAYER, WATER, CAMERA, DEPTHS, ANGLERFISH, LIVES, TOUCH, SHOP, LOGS } from '../config/constants';
 import { LEVELS, STARTING_LEVEL } from '../config/levels';
 import type { LevelDef, PortalDef } from '../config/levels';
@@ -1088,11 +1089,12 @@ export class WorldScene extends Phaser.Scene {
     const candidates = farTiles.length > 0 ? farTiles : grassTiles;
     const tile = Phaser.Utils.Array.GetRandom(candidates);
 
+    const grade = pickMouseGrade();
     const mouse = new Mouse(
       this,
       tile.pixelX + this.map.tileWidth / 2,
       tile.pixelY + this.map.tileHeight / 2,
-      miceCfg.fleeSpeed,
+      grade,
       miceCfg.fleeRadius,
     );
 
@@ -1115,10 +1117,8 @@ export class WorldScene extends Phaser.Scene {
 
   private collectMouse(mouse: Mouse): void {
     if (!mouse.active) return;
-    const miceCfg = this.levelDef.mice;
-    if (!miceCfg) return;
 
-    this.score += miceCfg.pointsPerMouse;
+    this.score += mouse.grade.value;
     mouse.collect();
     this.events.emit('scoreChanged', this.score);
     this.checkPortalUnlocks();
