@@ -317,9 +317,8 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     const playerDist = Phaser.Math.Distance.Between(this.x, this.y, this.player.x, this.player.y);
     const aggroRange = this.sightRange * 0.6;
 
-    this.target = null;
-
     const prevTarget = this.target;
+    this.target = null;
 
     // Player within aggro range — chase regardless of territory
     if (playerDist < aggroRange) {
