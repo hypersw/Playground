@@ -1289,6 +1289,10 @@ export class WorldScene extends Phaser.Scene {
     state.gfx.strokeCircle(0, 0, r);
 
     state.open = false;
+    // Restore price text (drawPortalOpen replaces it with the label)
+    state.priceTag.setText(
+      state.def.moneyRequired > 0 ? `€${state.def.moneyRequired}` : state.def.label
+    );
     state.priceTag.setVisible(true);
   }
 
