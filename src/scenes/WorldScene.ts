@@ -559,7 +559,12 @@ export class WorldScene extends Phaser.Scene {
         const portalY = ap.def.row * tileSize + tileSize / 2;
         const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, portalX, portalY);
         if (dist > tileSize * 2) {
-          this.drawPortalOpen(ap);
+          // Only open if money requirement is met (or free)
+          if (ap.def.moneyRequired <= 0 || this.score >= ap.def.moneyRequired) {
+            this.drawPortalOpen(ap);
+          } else {
+            this.drawPortalClosed(ap);
+          }
           this.arrivalPortalState = null;
         }
       }
