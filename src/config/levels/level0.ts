@@ -40,6 +40,13 @@ const level0: LevelDef = {
       moneyRequired: 0,
       label: 'Level 2',
     },
+    {
+      col: 10,
+      row: 8,
+      targetLevel: 3,        // → The Forest
+      moneyRequired: 0,
+      label: 'Level 3',
+    },
   ],
 
   logs: {

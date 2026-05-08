@@ -34,7 +34,7 @@ const level2: LevelDef = {
       col: 1,
       row: 1,
       targetLevel: 0,       // → Home
-      moneyRequired: 0,     // always open
+      moneyRequired: 300,
       label: 'Home',
     },
   ],

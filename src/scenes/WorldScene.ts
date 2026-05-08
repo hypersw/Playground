@@ -1367,6 +1367,15 @@ export class WorldScene extends Phaser.Scene {
 
     state.pulseTween?.stop();
 
+    console.log('[Portal] spin start', state.def.label, '→ level', state.def.targetLevel);
+
+    const transition: LevelTransition = {
+      level: state.def.targetLevel,
+      score: this.score,
+      lives: this.lives,
+      fromLevel: this.currentLevel,
+    };
+
     this.tweens.add({
       targets: this.player,
       angle: 360,
@@ -1376,15 +1385,19 @@ export class WorldScene extends Phaser.Scene {
       duration: 900,
       ease: 'Cubic.easeIn',
       onComplete: () => {
-        const transition: LevelTransition = {
-          level: state.def.targetLevel,
-          score: this.score,
-          lives: this.lives,
-          fromLevel: this.currentLevel,
-        };
+        console.log('[Portal] spin done, starting level', transition.level);
         this.events.emit('levelTransition', transition);
         this.scene.start('WorldScene', transition);
       },
+    });
+
+    // Safety net: if tween doesn't complete within 2s, force transition
+    this.time.delayedCall(2000, () => {
+      if (this.isGameOver && this.scene.isActive()) {
+        console.warn('[Portal] safety net: forced transition after timeout');
+        this.events.emit('levelTransition', transition);
+        this.scene.start('WorldScene', transition);
+      }
     });
   }
 }
