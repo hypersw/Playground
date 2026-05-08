@@ -14,10 +14,10 @@ const level2: LevelDef = {
   mapKey: 'level2-map',
 
   spawnRegion: {
-    minCol: 1,
-    maxCol: 5,
-    minRow: 1,
-    maxRow: 5,
+    minCol: 6,
+    maxCol: 11,
+    minRow: 6,
+    maxRow: 11,
   },
 
   anglerfish: {
@@ -31,8 +31,8 @@ const level2: LevelDef = {
 
   portals: [
     {
-      col: 1,
-      row: 1,
+      col: 8,
+      row: 8,
       targetLevel: 0,       // → Home
       moneyRequired: 300,
       label: 'Home',
