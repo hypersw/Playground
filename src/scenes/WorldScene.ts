@@ -158,7 +158,8 @@ export class WorldScene extends Phaser.Scene {
     if (this.groundLayer) this.groundLayer.setDepth(DEPTHS.GROUND);
 
     if (this.groundLayer) {
-      this.groundLayer.setCollision([1]);
+      // All solid tiles: walls (1), tree variants (5-9), bushes (10)
+      this.groundLayer.setCollision([1, 5, 6, 7, 8, 9, 10]);
     }
 
     // Runtime fish-only collision layer (walls + grass collidable, water not)
@@ -694,7 +695,8 @@ export class WorldScene extends Phaser.Scene {
         const rowArr: boolean[] = [];
         for (let col = 0; col < this.map.width; col++) {
           const tile = this.groundLayer.getTileAt(col, row);
-          rowArr.push(tile !== null && tile.index !== 1);
+          // Walkable: grass (2), portal (3), water (4)
+          rowArr.push(tile !== null && (tile.index === 2 || tile.index === 3 || tile.index === 4));
         }
         grid.push(rowArr);
       }
